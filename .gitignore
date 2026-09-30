@@ -1,0 +1,7 @@
+.venv/
+.python/
+__pycache__/
+*.pyc
+artifacts/checkpoints/
+artifacts/tensorboard/
+artifacts/eval/
