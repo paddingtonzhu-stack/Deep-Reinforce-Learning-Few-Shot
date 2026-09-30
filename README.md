@@ -67,6 +67,17 @@ Each report records CUDA availability, all detected GPU names, the requested
 device, and the device actually used by the PPO model. Evaluation uses one GPU
 per process; multi-GPU training will be configured separately.
 
+Analyze all saved runs in Jupyter:
+
+```bash
+pip install -r requirements-analysis.txt
+jupyter lab analyze_ood.ipynb
+```
+
+The notebook automatically selects the newest run with the largest episode
+count, uses matched seeds for OOD-versus-control comparisons, and plots reward,
+success rate, confidence intervals, and per-seed degradation.
+
 ## Run the supplied trained demo now
 
 This checkout includes a project-local Python runtime and trained weights. From PowerShell:
