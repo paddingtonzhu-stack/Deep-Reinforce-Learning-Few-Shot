@@ -2,6 +2,7 @@
 import argparse
 import csv
 import json
+import logging
 import os
 import platform
 import statistics
@@ -38,6 +39,17 @@ def unique_run_directory(root: Path):
     return candidate
 
 
+def configure_logging(run_dir: Path):
+    logger = logging.getLogger("ood_test")
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()
+    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+    for handler in (logging.StreamHandler(sys.stdout), logging.FileHandler(run_dir / "run.log", encoding="utf-8")):
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    return logger
+
+
 def summarize(rows):
     rewards = [row["reward"] for row in rows]
     lengths = [row["decisions"] for row in rows]
@@ -59,6 +71,7 @@ def main():
     results_root = args.results_root or Path(config["results_root"])
     requested_device = args.device or config.get("device", "auto")
     run_dir = unique_run_directory(results_root)
+    logger = configure_logging(run_dir)
     model_path = Path(config["model"])
     if config["scenario"] != "basic":
         raise ValueError("The current OOD suite supports the frozen Basic baseline only")
@@ -80,6 +93,8 @@ def main():
         )
     torch.set_num_threads(1)
     model = PPO.load(model_path, device=requested_device)
+    logger.info("Run directory: %s", run_dir)
+    logger.info("Requested device: %s; model device: %s", requested_device, model.device)
     deterministic = bool(config.get("deterministic_policy", True))
     all_rows = []
     summaries = {}
@@ -88,7 +103,7 @@ def main():
         condition = OODCondition(**condition_data)
         env = make_ood_env(condition)
         condition_rows = []
-        print(f"\ncondition={condition.name}", flush=True)
+        logger.info("Condition: %s", condition.name)
         for index in range(episodes):
             seed = seed_start + index
             observation, _ = env.reset(seed=seed)
@@ -112,9 +127,12 @@ def main():
             }
             condition_rows.append(row)
             all_rows.append(row)
-            print(f"  episode={index + 1:02d} seed={seed} reward={reward_sum:+.3f} decisions={decisions}", flush=True)
+            logger.info(
+                "episode=%02d seed=%d reward=%+.3f decisions=%d",
+                index + 1, seed, reward_sum, decisions,
+            )
         summaries[condition.name] = summarize(condition_rows)
-        print(f"  mean_reward={summaries[condition.name]['mean_reward']:+.3f}", flush=True)
+        logger.info("Condition %s mean_reward=%+.3f", condition.name, summaries[condition.name]["mean_reward"])
         env.close()
 
     metadata = {
@@ -137,7 +155,8 @@ def main():
         writer = csv.DictWriter(handle, fieldnames=all_rows[0].keys())
         writer.writeheader()
         writer.writerows(all_rows)
-    print(f"\nSaved versioned results: {run_dir}", flush=True)
+    logger.info("Saved versioned results: %s", run_dir)
+    logging.shutdown()
     if os.name == "nt":
         os._exit(0)
 

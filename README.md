@@ -52,7 +52,9 @@ The suite covers missing frames, darker observations, sensor noise, a changed
 frame skip, and a combined visual shift. Every invocation creates a new UTC
 timestamped directory under `results/ood/`; previous runs are never overwritten.
 Each run saves its resolved `config.json`, full `report.json`, and
-`episodes.csv`. For a quick pipeline check, use `python test.py --episodes 2`.
+`episodes.csv`. Progress is shown in the terminal and simultaneously saved as
+`run.log` in the same versioned directory. For a quick pipeline check, use
+`python test.py --episodes 2`.
 
 Device selection defaults to `auto`: CUDA is used when the installed PyTorch
 build can access it, otherwise the test falls back to CPU. Select a GPU
