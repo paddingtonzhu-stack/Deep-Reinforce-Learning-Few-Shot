@@ -10,20 +10,34 @@ import vizdoom as vzd
 class VizDoomBasicEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 35}
     def __init__(self, image_size=84, frame_skip=4, render_mode=None, max_episode_steps=525,
-                 reward_scale=0.01):
+                 reward_scale=0.01, render_tic_delay=0.75, showcase_actions=False):
         super().__init__()
         self.image_size, self.frame_skip = image_size, frame_skip
         self.render_mode, self.max_episode_steps, self._steps = render_mode, max_episode_steps, 0
         self.reward_scale = reward_scale
+        self.render_tic_delay = render_tic_delay
         self.game = vzd.DoomGame()
         self.game.load_config(str(Path(vzd.scenarios_path) / "basic.cfg"))
+        if showcase_actions:
+            self.game.add_available_button(vzd.Button.MOVE_FORWARD)
         self.game.set_screen_format(vzd.ScreenFormat.RGB24)
         self.game.set_screen_resolution(vzd.ScreenResolution.RES_320X240)
         self.game.set_window_visible(render_mode == "human")
         self.game.set_mode(vzd.Mode.PLAYER)
         self.game.init()
-        self._actions = [[True, False, False], [False, True, False], [False, False, True]]
-        self.action_space = gym.spaces.Discrete(3)
+        if showcase_actions:
+            # Shoot while advancing makes successful behavior visually legible.
+            self._actions = [
+                [True, False, False, False],
+                [False, True, False, False],
+                [False, False, False, True],
+                [False, False, True, True],
+            ]
+            self.action_names = ("MOVE_LEFT", "MOVE_RIGHT", "MOVE_FORWARD", "FORWARD_ATTACK")
+        else:
+            self._actions = [[True, False, False], [False, True, False], [False, False, True]]
+            self.action_names = ("MOVE_LEFT", "MOVE_RIGHT", "ATTACK")
+        self.action_space = gym.spaces.Discrete(len(self._actions))
         self.observation_space = gym.spaces.Box(0, 255, (image_size, image_size, 1), np.uint8)
 
     def _observation(self):
@@ -45,11 +59,16 @@ class VizDoomBasicEnv(gym.Env):
     def step(self, action):
         if not self.action_space.contains(action):
             raise ValueError(f"Invalid action {action}")
-        raw_reward = float(self.game.make_action(self._actions[action], self.frame_skip))
-        # Synchronous ViZDoom runs as fast as possible. Pace only visible demos so
-        # a human can actually follow the agent's movement and shots.
         if self.render_mode == "human":
-            time.sleep(self.frame_skip / 35.0)
+            # Advance one engine tick at a time so movement and firing are visible.
+            raw_reward = 0.0
+            for _ in range(self.frame_skip):
+                raw_reward += float(self.game.make_action(self._actions[action], 1))
+                time.sleep(self.render_tic_delay)
+                if self.game.is_episode_finished():
+                    break
+        else:
+            raw_reward = float(self.game.make_action(self._actions[action], self.frame_skip))
         reward = raw_reward * self.reward_scale
         self._steps += self.frame_skip
         terminated = self.game.is_episode_finished()

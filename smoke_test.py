@@ -23,7 +23,7 @@ def main():
         path = Path(directory) / "roundtrip"
         model.save(path); loaded = PPO.load(path)
         action, _ = loaded.predict(env.reset(), deterministic=True)
-        assert int(action[0]) in range(3)
+        assert int(action[0]) in range(env.action_space.n)
     env.close()
     print("PASS: env shape/actions, PPO gradients, and checkpoint save/load", flush=True)
     if os.name == "nt":

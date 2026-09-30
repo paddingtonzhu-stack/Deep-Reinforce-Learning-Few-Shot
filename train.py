@@ -11,11 +11,11 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 from vizdoom_env import VizDoomBasicEnv
 
-def make_env(seed, render_mode=None):
-    return Monitor(VizDoomBasicEnv(render_mode=render_mode))
+def make_env(seed, render_mode=None, showcase=False):
+    return Monitor(VizDoomBasicEnv(render_mode=render_mode, showcase_actions=showcase))
 
-def vector_env(seed):
-    return VecTransposeImage(DummyVecEnv([lambda: make_env(seed)]))
+def vector_env(seed, showcase=False):
+    return VecTransposeImage(DummyVecEnv([lambda: make_env(seed, showcase=showcase)]))
 
 def main():
     p = argparse.ArgumentParser()
@@ -23,13 +23,14 @@ def main():
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--output", type=Path, default=Path("artifacts"))
     p.add_argument("--resume", type=Path)
+    p.add_argument("--showcase", action="store_true", help="Enable forward-capable demo actions")
     args = p.parse_args()
     # Small CNN batches are much faster without CPU thread oversubscription.
     torch.set_num_threads(1)
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     for d in (args.output, args.output / "checkpoints", args.output / "best"):
         d.mkdir(parents=True, exist_ok=True)
-    env, eval_env = vector_env(args.seed), vector_env(args.seed + 10_000)
+    env, eval_env = vector_env(args.seed, args.showcase), vector_env(args.seed + 10_000, args.showcase)
     if args.resume:
         model = PPO.load(args.resume, env=env, tensorboard_log=str(args.output / "tensorboard"))
     else:

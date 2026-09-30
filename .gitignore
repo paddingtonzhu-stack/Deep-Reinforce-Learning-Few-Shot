@@ -1,7 +1,11 @@
 .venv/
 .python/
+.python-corridor/
+.idea/
 __pycache__/
 *.pyc
+_vizdoom.ini
 artifacts/checkpoints/
 artifacts/tensorboard/
 artifacts/eval/
+artifacts/deadly-corridor-upstream/

@@ -1,4 +1,41 @@
-# ViZDoom visual PPO demo
+# ViZDoom pretrained agents
+
+## Deadly Corridor — recommended demo
+
+This project now includes the pretrained Sample Factory APPO Deadly Corridor
+agent. It fights enemies, moves through the corridor, collects supplies, and is
+much more suitable for a presentation than the small Basic scenario below.
+
+On Windows, double-click `demo_deadly_corridor.cmd`, or run:
+
+```powershell
+.\demo_deadly_corridor.cmd
+```
+
+This displays five episodes at 20 FPS. To benchmark twenty episodes without
+rendering:
+
+```powershell
+.\evaluate_deadly_corridor.cmd
+```
+
+The launcher selects the upstream `best` checkpoint, policy 0, and deterministic
+evaluation. The model snapshot and isolated Windows runtime are ignored by Git
+because they are downloaded/generated dependencies rather than source files.
+
+For Linux training or fine-tuning, install Sample Factory and download the same
+published checkpoint:
+
+```bash
+pip install "sample-factory[vizdoom]==2.1.1"
+python -m sample_factory.huggingface.load_from_hub \
+  -r MattStammers/vizdoom_deadly_corridor -d ./artifacts
+python -m sf_examples.vizdoom.enjoy_vizdoom \
+  --algo=APPO --env=doom_deadly_corridor --train_dir=./artifacts \
+  --experiment=vizdoom_deadly_corridor --load_checkpoint_kind=best
+```
+
+The remaining sections document the earlier compact PPO baseline.
 
 Milestone 1: a reproducible visual-only PPO baseline for ViZDoom Basic. There is intentionally no Transformer, memory, or surprise gate yet.
 
@@ -10,11 +47,11 @@ This checkout includes a project-local Python runtime and trained weights. From 
 .\.python\python.exe evaluate.py --model artifacts\demo\best\best_model.zip --episodes 5 --render
 ```
 
-Visible demos are deliberately paced at Doom's native 35-tic rate. Without this pacing, synchronous ViZDoom completes successful episodes almost instantly and appears to jump directly to the `FINISHED` screen.
+Visible demos are deliberately slowed to `0.75` seconds per Doom tick. Since one policy decision repeats for four ticks, even the fastest two-decision win takes about six seconds and its movement/shooting remains visible. The terminal also prints every chosen action and reward. Change the speed with `--render-delay`, for example `--render-delay 0.4` for a faster demo.
 
 For a non-visual 20-episode test, omit `--render` and use `--episodes 20`.
 
-The selected checkpoint was trained for 20,000 environment decisions. On a separate fixed-seed 20-episode test (seeds 2000-2019), it achieved mean `0.10`, standard deviation `1.55`, and median `0.95` scaled reward; 16/20 episodes had positive reward. Four episodes timed out, so this is a working demonstration rather than a solved-policy claim.
+The selected checkpoint was trained for 30,000 environment decisions. In a controlled comparison over 50 unseen seeds (5000-5049), it was the best saved checkpoint: 37/50 positive-reward episodes, mean `-0.14`, standard deviation `1.76`, and median `0.95` scaled reward. Failures incur a large timeout penalty, which explains why the mean is below zero despite a 74% positive-result rate. This is a working demonstration rather than a solved-policy claim.
 
 ## Model contract
 
@@ -46,7 +83,7 @@ tensorboard --logdir artifacts\tensorboard
 Checkpoints are saved under `artifacts`. Resume the supplied run with:
 
 ```powershell
-python train.py --timesteps 50000 --resume artifacts\demo\checkpoints\ppo_vizdoom_20000_steps.zip --output artifacts\continued
+python train.py --timesteps 50000 --resume artifacts\demo\checkpoints\ppo_vizdoom_30000_steps.zip --output artifacts\continued
 ```
 
 ## Evaluate / live demo

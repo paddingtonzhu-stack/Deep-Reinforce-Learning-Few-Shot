@@ -13,10 +13,16 @@ def main():
     p.add_argument("--episodes", type=int, default=20)
     p.add_argument("--seed", type=int, default=1000)
     p.add_argument("--render", action="store_true")
+    p.add_argument("--render-delay", type=float, default=0.75,
+                   help="Seconds per Doom tick in visible demos (default: 0.75)")
     p.add_argument("--stochastic", action="store_true")
+    p.add_argument("--showcase", action="store_true", help="Use forward-capable demo actions")
     args = p.parse_args()
     torch.set_num_threads(1)
-    env, model = VizDoomBasicEnv(render_mode="human" if args.render else None), PPO.load(args.model, device="auto")
+    env = VizDoomBasicEnv(render_mode="human" if args.render else None,
+                          render_tic_delay=args.render_delay,
+                          showcase_actions=args.showcase)
+    model = PPO.load(args.model, device="auto")
     rewards, lengths = [], []
     try:
         for episode in range(args.episodes):
@@ -26,6 +32,9 @@ def main():
                 action, _ = model.predict(obs, deterministic=not args.stochastic)
                 obs, reward, terminated, truncated, _ = env.step(int(action))
                 total += reward; length += 1; done = terminated or truncated
+                if args.render:
+                    print(f"  step={length:02d} action={env.action_names[int(action)]:>14} "
+                          f"reward={reward:+.2f} total={total:+.2f}", flush=True)
             rewards.append(total); lengths.append(length)
             print(f"episode={episode + 1} reward={total:.2f} decisions={length}")
     finally:
