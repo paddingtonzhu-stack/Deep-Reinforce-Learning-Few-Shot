@@ -138,6 +138,16 @@ under `results/deadly_corridor_baseline/<UTC timestamp>/` as `config.json`,
 `episodes.csv`, `report.json`, and `run.log`. The report includes per-model and
 aggregate reward, episode length, death rate, and corridor-completion rate.
 
+After copying the versioned test result to the analysis machine, inspect it with:
+
+```bash
+jupyter lab analyze_corridor.ipynb
+```
+
+The notebook reports bootstrap reward intervals, terminal outcomes, episode
+length, and matched-test agreement between independently trained seeds. Reward
+must not be interpreted as task success without checking death and completion.
+
 If a run is interrupted, resume from its latest periodic checkpoint while
 specifying only the remaining number of decisions. For example, to continue a
 seed-2 run from 300,000 to one million decisions:
