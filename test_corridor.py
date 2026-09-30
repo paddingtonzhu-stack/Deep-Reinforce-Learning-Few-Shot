@@ -48,19 +48,20 @@ def summarize(rows):
         "mean_decisions": statistics.fmean(row["decisions"] for row in rows),
         "death_rate": statistics.fmean(row["player_dead"] for row in rows),
         "completion_rate": statistics.fmean(row["completed"] for row in rows),
+        "timeout_rate": statistics.fmean(row.get("timed_out", False) for row in rows),
     }
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=Path, default=Path("configs/deadly_corridor_baseline.json"))
+    parser.add_argument("--config", type=Path, default=Path("configs/deadly_corridor_baseline_v2.json"))
     parser.add_argument("--episodes", type=int)
     parser.add_argument("--seed-start", type=int)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--training-seeds", help="Comma-separated subset, e.g. 0,1,2")
     parser.add_argument("--checkpoint", choices=("best", "final"), default="best")
     parser.add_argument("--output-root", type=Path)
-    parser.add_argument("--results-root", type=Path, default=Path("results/deadly_corridor_baseline"))
+    parser.add_argument("--results-root", type=Path)
     args = parser.parse_args()
 
     config = json.loads(args.config.read_text(encoding="utf-8"))
@@ -73,7 +74,8 @@ def main():
     episodes = args.episodes or int(evaluation.get("test_episodes", 100))
     test_seed_start = args.seed_start if args.seed_start is not None else int(evaluation.get("test_seed_start", 10000))
     output_root = args.output_root or Path(experiment["output_root"])
-    run_dir = unique_run_directory(args.results_root)
+    results_root = args.results_root or Path(experiment.get("results_root", f"results/{output_root.name}"))
+    run_dir = unique_run_directory(results_root)
     logger = configure_logging(run_dir)
 
     if args.device.startswith("cuda") and not torch.cuda.is_available():
@@ -120,6 +122,7 @@ def main():
                 "decisions": decisions,
                 "player_dead": bool(final_info["player_dead"]),
                 "completed": bool(final_info["completed"]),
+                "timed_out": bool(final_info["timed_out"]),
             }
             rows.append(row)
             seed_rows.append(row)

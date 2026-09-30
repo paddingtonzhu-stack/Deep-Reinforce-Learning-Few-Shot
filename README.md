@@ -82,6 +82,25 @@ success rate, confidence intervals, and per-seed degradation.
 
 ## Deadly Corridor research baseline
 
+### Preserved v1 result
+
+`configs/deadly_corridor_baseline_v1.json` preserves the original native-reward
+experiment exactly. Its artifacts remain under `artifacts/deadly_corridor_baseline/`
+and its held-out results remain under `results/deadly_corridor_baseline/`. Do not
+overwrite or resume those directories. The completed v1 experiment achieved
+positive combat reward but 100% death and 0% corridor completion across 300
+held-out episodes.
+
+### Corrected v2 baseline
+
+`configs/deadly_corridor_baseline_v2.json` is the new default. Native combat
+reward is still logged and scaled by 0.01, but death adds -10 and genuine
+corridor completion adds +10. A timeout is recorded as truncation and never
+misclassified as completion. Entropy coefficient is increased from 0.01 to
+0.02 to reduce the premature policy collapse observed in v1. V2 writes only to
+`artifacts/deadly_corridor_baseline_v2/` and
+`results/deadly_corridor_baseline_v2/`.
+
 The next experimental baseline uses the longer `deadly_corridor` scenario with
 visual-only 84x84 grayscale observations. The policy receives no health value,
 coordinates, labels, object locations, or automap. Its eight discrete actions
@@ -114,12 +133,16 @@ After that succeeds, start the full three-seed baseline:
 python run_multiseed.py
 ```
 
-The configuration is `configs/deadly_corridor_baseline.json`. Seeds 0 and 1
+The default configuration is `configs/deadly_corridor_baseline_v2.json`. Seeds 0 and 1
 start concurrently on `cuda:0` and `cuda:1`; seed 2 starts on the first free
 GPU. Each seed has an independent directory and `training.log` under
-`artifacts/deadly_corridor_baseline/`. The default budget is one million
+`artifacts/deadly_corridor_baseline_v2/`. The default budget is one million
 environment decisions per seed. TensorBoard data, checkpoints, evaluation
 records, the best model, and the final model are kept separately for each seed.
+The launcher also writes `launcher.log`, emits a heartbeat every minute, and on
+failure prints the process exit signal plus the last 60 lines of that seed's
+`training.log`. A Linux out-of-memory kill is therefore reported explicitly
+rather than leaving the launcher apparently idle.
 
 Do not add Transformer memory until all three baseline runs finish and can be
 evaluated with a shared seed set. This freezes the CNN/PPO control needed for a

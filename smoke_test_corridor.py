@@ -11,7 +11,7 @@ from vizdoom_env import VizDoomEnv
 
 
 def main():
-    config = json.loads(Path("configs/deadly_corridor_baseline.json").read_text(encoding="utf-8"))
+    config = json.loads(Path("configs/deadly_corridor_baseline_v2.json").read_text(encoding="utf-8"))
     env_config = config["env"]
     raw_env = VizDoomEnv(**env_config)
     observation, _ = raw_env.reset(seed=0)

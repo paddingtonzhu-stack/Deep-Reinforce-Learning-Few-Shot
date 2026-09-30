@@ -1,0 +1,39 @@
+{
+  "env": {
+    "scenario": "deadly_corridor",
+    "image_size": 84,
+    "frame_skip": 4,
+    "reward_scale": 0.01,
+    "terminal_death_penalty": -10.0,
+    "completion_bonus": 10.0
+  },
+  "model": {
+    "features_dim": 256
+  },
+  "ppo": {
+    "learning_rate": 0.00025,
+    "n_steps": 1024,
+    "batch_size": 256,
+    "n_epochs": 4,
+    "gamma": 0.99,
+    "gae_lambda": 0.95,
+    "clip_range": 0.2,
+    "entropy_coef": 0.02,
+    "value_coef": 0.5,
+    "max_grad_norm": 0.5,
+    "total_timesteps": 1000000
+  },
+  "evaluation": {
+    "frequency": 25000,
+    "episodes": 20,
+    "test_seed_start": 10000,
+    "test_episodes": 100
+  },
+  "experiment": {
+    "name": "deadly_corridor_baseline_v2_terminal_reward",
+    "seeds": [0, 1, 2],
+    "devices": ["cuda:0", "cuda:1"],
+    "output_root": "artifacts/deadly_corridor_baseline_v2",
+    "results_root": "results/deadly_corridor_baseline_v2"
+  }
+}

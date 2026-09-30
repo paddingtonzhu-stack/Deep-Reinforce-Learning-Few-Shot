@@ -38,7 +38,8 @@ class VizDoomEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 35}
     def __init__(self, scenario="basic", image_size=84, frame_skip=4, render_mode=None,
                  max_episode_steps=None, reward_scale=0.01, render_tic_delay=0.75,
-                 showcase_actions=False):
+                 showcase_actions=False, terminal_death_penalty=0.0,
+                 completion_bonus=0.0):
         super().__init__()
         if scenario not in SCENARIO_ACTIONS:
             raise ValueError(f"Unsupported scenario {scenario!r}; choose from {tuple(SCENARIO_ACTIONS)}")
@@ -49,6 +50,8 @@ class VizDoomEnv(gym.Env):
         self.max_episode_steps = max_episode_steps or scenario_spec["timeout"]
         self._steps = 0
         self.reward_scale = reward_scale
+        self.terminal_death_penalty = terminal_death_penalty
+        self.completion_bonus = completion_bonus
         self.render_tic_delay = render_tic_delay
         self.game = vzd.DoomGame()
         self.game.load_config(str(Path(vzd.scenarios_path) / f"{scenario}.cfg"))
@@ -103,15 +106,27 @@ class VizDoomEnv(gym.Env):
                     break
         else:
             raw_reward = float(self.game.make_action(self._actions[action], self.frame_skip))
-        reward = raw_reward * self.reward_scale
         self._steps += self.frame_skip
-        terminated = self.game.is_episode_finished()
-        truncated = self._steps >= self.max_episode_steps and not terminated
-        player_dead = bool(self.game.is_player_dead()) if terminated else False
+        episode_finished = self.game.is_episode_finished()
+        player_dead = bool(self.game.is_player_dead()) if episode_finished else False
+        timed_out = self._steps >= self.max_episode_steps and not player_dead
+        completed = bool(episode_finished and not player_dead and not timed_out)
+        terminated = bool(episode_finished and not timed_out)
+        truncated = bool(timed_out)
+        base_reward = raw_reward * self.reward_scale
+        terminal_adjustment = 0.0
+        if player_dead:
+            terminal_adjustment += self.terminal_death_penalty
+        elif completed:
+            terminal_adjustment += self.completion_bonus
+        reward = base_reward + terminal_adjustment
         return self._observation(), reward, terminated, truncated, {
             "raw_reward": raw_reward,
+            "base_reward": base_reward,
+            "terminal_adjustment": terminal_adjustment,
             "player_dead": player_dead,
-            "completed": bool(terminated and not player_dead),
+            "timed_out": timed_out,
+            "completed": completed,
         }
 
     def render(self):
