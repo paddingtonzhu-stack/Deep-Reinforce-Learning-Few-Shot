@@ -54,6 +54,19 @@ timestamped directory under `results/ood/`; previous runs are never overwritten.
 Each run saves its resolved `config.json`, full `report.json`, and
 `episodes.csv`. For a quick pipeline check, use `python test.py --episodes 2`.
 
+Device selection defaults to `auto`: CUDA is used when the installed PyTorch
+build can access it, otherwise the test falls back to CPU. Select a GPU
+explicitly when validating a multi-GPU Linux workstation:
+
+```bash
+python test.py --episodes 2 --device cuda:0
+python test.py --episodes 2 --device cuda:1
+```
+
+Each report records CUDA availability, all detected GPU names, the requested
+device, and the device actually used by the PPO model. Evaluation uses one GPU
+per process; multi-GPU training will be configured separately.
+
 ## Run the supplied trained demo now
 
 This checkout includes a project-local Python runtime and trained weights. From PowerShell:

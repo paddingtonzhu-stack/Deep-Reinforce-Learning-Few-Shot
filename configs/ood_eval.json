@@ -4,6 +4,7 @@
   "episodes_per_condition": 20,
   "seed_start": 7000,
   "deterministic_policy": true,
+  "device": "auto",
   "results_root": "results/ood",
   "conditions": [
     {"name": "id_control"},

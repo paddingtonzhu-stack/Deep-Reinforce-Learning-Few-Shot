@@ -22,6 +22,7 @@ def arguments():
     parser.add_argument("--episodes", type=int, help="Override episodes per condition")
     parser.add_argument("--seed-start", type=int, help="Override first evaluation seed")
     parser.add_argument("--results-root", type=Path, help="Override versioned-results directory")
+    parser.add_argument("--device", help="PyTorch device: auto, cpu, cuda, cuda:0, cuda:1, ...")
     return parser.parse_args()
 
 
@@ -56,6 +57,7 @@ def main():
     episodes = args.episodes or int(config["episodes_per_condition"])
     seed_start = args.seed_start if args.seed_start is not None else int(config["seed_start"])
     results_root = args.results_root or Path(config["results_root"])
+    requested_device = args.device or config.get("device", "auto")
     run_dir = unique_run_directory(results_root)
     model_path = Path(config["model"])
     if config["scenario"] != "basic":
@@ -64,11 +66,20 @@ def main():
         raise FileNotFoundError(f"Checkpoint not found: {model_path}")
 
     resolved = dict(config)
-    resolved.update({"episodes_per_condition": episodes, "seed_start": seed_start})
+    resolved.update({
+        "episodes_per_condition": episodes,
+        "seed_start": seed_start,
+        "device": requested_device,
+    })
     (run_dir / "config.json").write_text(json.dumps(resolved, indent=2) + "\n", encoding="utf-8")
 
+    if requested_device.startswith("cuda") and not torch.cuda.is_available():
+        raise RuntimeError(
+            f"Device '{requested_device}' was requested, but PyTorch cannot access CUDA. "
+            "Run with --device cpu or install a CUDA-enabled PyTorch build."
+        )
     torch.set_num_threads(1)
-    model = PPO.load(model_path, device="cpu")
+    model = PPO.load(model_path, device=requested_device)
     deterministic = bool(config.get("deterministic_policy", True))
     all_rows = []
     summaries = {}
@@ -112,6 +123,10 @@ def main():
         "platform": platform.platform(),
         "torch": torch.__version__,
         "cuda_available": torch.cuda.is_available(),
+        "cuda_device_count": torch.cuda.device_count(),
+        "cuda_devices": [torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())],
+        "requested_device": requested_device,
+        "model_device": str(model.device),
         "model": str(model_path),
         "deterministic_policy": deterministic,
         "seed_start": seed_start,
