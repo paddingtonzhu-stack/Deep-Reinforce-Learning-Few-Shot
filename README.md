@@ -125,6 +125,33 @@ Do not add Transformer memory until all three baseline runs finish and can be
 evaluated with a shared seed set. This freezes the CNN/PPO control needed for a
 fair ablation.
 
+After all three training seeds finish, evaluate their best checkpoints on the
+same 100 held-out episode seeds:
+
+```bash
+python test_corridor.py --device cuda:1
+```
+
+This performs 300 frozen-policy episodes: 100 test seeds for each of the three
+independently trained models. Results are saved without overwriting prior runs
+under `results/deadly_corridor_baseline/<UTC timestamp>/` as `config.json`,
+`episodes.csv`, `report.json`, and `run.log`. The report includes per-model and
+aggregate reward, episode length, death rate, and corridor-completion rate.
+
+If a run is interrupted, resume from its latest periodic checkpoint while
+specifying only the remaining number of decisions. For example, to continue a
+seed-2 run from 300,000 to one million decisions:
+
+```bash
+python train.py --config configs/deadly_corridor_baseline.json --seed 2 \
+  --device cuda:0 --output artifacts/deadly_corridor_baseline/seed_2 \
+  --resume artifacts/deadly_corridor_baseline/seed_2/checkpoints/ppo_vizdoom_300000_steps.zip \
+  --timesteps 700000
+```
+
+Resume mode preserves the checkpoint's existing timestep counter, so callback
+checkpoint names and TensorBoard steps continue from the restored run.
+
 ## Run the supplied trained demo now
 
 This checkout includes a project-local Python runtime and trained weights. From PowerShell:

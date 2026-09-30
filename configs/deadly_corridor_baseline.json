@@ -23,7 +23,9 @@
   },
   "evaluation": {
     "frequency": 25000,
-    "episodes": 20
+    "episodes": 20,
+    "test_seed_start": 10000,
+    "test_episodes": 100
   },
   "experiment": {
     "seeds": [0, 1, 2],

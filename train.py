@@ -64,7 +64,12 @@ def main():
     evaluation = EvalCallback(eval_env, best_model_save_path=str(output / "best"),
                               log_path=str(output / "eval"), eval_freq=eval_frequency,
                               n_eval_episodes=int(evaluation_config.get("episodes", 10)), deterministic=True)
-    model.learn(total_timesteps=timesteps, callback=[checkpoint, evaluation], progress_bar=True)
+    model.learn(
+        total_timesteps=timesteps,
+        callback=[checkpoint, evaluation],
+        progress_bar=True,
+        reset_num_timesteps=not bool(args.resume),
+    )
     model.save(output / "ppo_vizdoom_final")
     env.close(); eval_env.close()
     print(f"Saved final checkpoint to {output / 'ppo_vizdoom_final.zip'}", flush=True)

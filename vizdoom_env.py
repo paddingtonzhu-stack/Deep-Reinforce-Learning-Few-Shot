@@ -107,7 +107,12 @@ class VizDoomEnv(gym.Env):
         self._steps += self.frame_skip
         terminated = self.game.is_episode_finished()
         truncated = self._steps >= self.max_episode_steps and not terminated
-        return self._observation(), reward, terminated, truncated, {"raw_reward": raw_reward}
+        player_dead = bool(self.game.is_player_dead()) if terminated else False
+        return self._observation(), reward, terminated, truncated, {
+            "raw_reward": raw_reward,
+            "player_dead": player_dead,
+            "completed": bool(terminated and not player_dead),
+        }
 
     def render(self):
         state = self.game.get_state()
