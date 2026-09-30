@@ -7,25 +7,59 @@ import gymnasium as gym
 import numpy as np
 import vizdoom as vzd
 
-class VizDoomBasicEnv(gym.Env):
+SCENARIO_ACTIONS = {
+    "basic": {
+        "buttons": ("MOVE_LEFT", "MOVE_RIGHT", "ATTACK"),
+        "actions": {
+            "MOVE_LEFT": (1, 0, 0),
+            "MOVE_RIGHT": (0, 1, 0),
+            "ATTACK": (0, 0, 1),
+        },
+        "timeout": 300,
+    },
+    "deadly_corridor": {
+        "buttons": ("MOVE_LEFT", "MOVE_RIGHT", "ATTACK", "MOVE_FORWARD", "MOVE_BACKWARD", "TURN_LEFT", "TURN_RIGHT"),
+        "actions": {
+            "MOVE_FORWARD": (0, 0, 0, 1, 0, 0, 0),
+            "MOVE_BACKWARD": (0, 0, 0, 0, 1, 0, 0),
+            "STRAFE_LEFT": (1, 0, 0, 0, 0, 0, 0),
+            "STRAFE_RIGHT": (0, 1, 0, 0, 0, 0, 0),
+            "TURN_LEFT": (0, 0, 0, 0, 0, 1, 0),
+            "TURN_RIGHT": (0, 0, 0, 0, 0, 0, 1),
+            "ATTACK": (0, 0, 1, 0, 0, 0, 0),
+            "FORWARD_ATTACK": (0, 0, 1, 1, 0, 0, 0),
+        },
+        "timeout": 2100,
+    },
+}
+
+
+class VizDoomEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 35}
-    def __init__(self, image_size=84, frame_skip=4, render_mode=None, max_episode_steps=525,
-                 reward_scale=0.01, render_tic_delay=0.75, showcase_actions=False):
+    def __init__(self, scenario="basic", image_size=84, frame_skip=4, render_mode=None,
+                 max_episode_steps=None, reward_scale=0.01, render_tic_delay=0.75,
+                 showcase_actions=False):
         super().__init__()
+        if scenario not in SCENARIO_ACTIONS:
+            raise ValueError(f"Unsupported scenario {scenario!r}; choose from {tuple(SCENARIO_ACTIONS)}")
+        scenario_spec = SCENARIO_ACTIONS[scenario]
+        self.scenario = scenario
         self.image_size, self.frame_skip = image_size, frame_skip
-        self.render_mode, self.max_episode_steps, self._steps = render_mode, max_episode_steps, 0
+        self.render_mode = render_mode
+        self.max_episode_steps = max_episode_steps or scenario_spec["timeout"]
+        self._steps = 0
         self.reward_scale = reward_scale
         self.render_tic_delay = render_tic_delay
         self.game = vzd.DoomGame()
-        self.game.load_config(str(Path(vzd.scenarios_path) / "basic.cfg"))
-        if showcase_actions:
+        self.game.load_config(str(Path(vzd.scenarios_path) / f"{scenario}.cfg"))
+        if scenario == "basic" and showcase_actions:
             self.game.add_available_button(vzd.Button.MOVE_FORWARD)
         self.game.set_screen_format(vzd.ScreenFormat.RGB24)
         self.game.set_screen_resolution(vzd.ScreenResolution.RES_320X240)
         self.game.set_window_visible(render_mode == "human")
         self.game.set_mode(vzd.Mode.PLAYER)
         self.game.init()
-        if showcase_actions:
+        if scenario == "basic" and showcase_actions:
             # Shoot while advancing makes successful behavior visually legible.
             self._actions = [
                 [True, False, False, False],
@@ -35,8 +69,8 @@ class VizDoomBasicEnv(gym.Env):
             ]
             self.action_names = ("MOVE_LEFT", "MOVE_RIGHT", "MOVE_FORWARD", "FORWARD_ATTACK")
         else:
-            self._actions = [[True, False, False], [False, True, False], [False, False, True]]
-            self.action_names = ("MOVE_LEFT", "MOVE_RIGHT", "ATTACK")
+            self.action_names = tuple(scenario_spec["actions"])
+            self._actions = [list(action) for action in scenario_spec["actions"].values()]
         self.action_space = gym.spaces.Discrete(len(self._actions))
         self.observation_space = gym.spaces.Box(0, 255, (image_size, image_size, 1), np.uint8)
 
@@ -84,3 +118,10 @@ class VizDoomBasicEnv(gym.Env):
         # Entry-point scripts use os._exit after saving/flushing as a workaround.
         if os.name != "nt":
             self.game.close()
+
+
+class VizDoomBasicEnv(VizDoomEnv):
+    """Backward-compatible Basic scenario wrapper."""
+
+    def __init__(self, **kwargs):
+        super().__init__(scenario="basic", **kwargs)

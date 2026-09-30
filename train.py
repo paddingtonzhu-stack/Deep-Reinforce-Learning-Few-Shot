@@ -1,5 +1,6 @@
 """Train the visual PPO baseline and save periodic/final checkpoints."""
 import argparse
+import json
 import os
 import random
 from pathlib import Path
@@ -9,45 +10,64 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
-from vizdoom_env import VizDoomBasicEnv
+from vizdoom_env import VizDoomEnv
 
-def make_env(seed, render_mode=None, showcase=False):
-    return Monitor(VizDoomBasicEnv(render_mode=render_mode, showcase_actions=showcase))
+def make_env(env_config, render_mode=None):
+    return Monitor(VizDoomEnv(render_mode=render_mode, **env_config))
 
-def vector_env(seed, showcase=False):
-    return VecTransposeImage(DummyVecEnv([lambda: make_env(seed, showcase=showcase)]))
+def vector_env(env_config):
+    # Preserve the original vector_env(seed) helper used by smoke_test.py.
+    if not isinstance(env_config, dict):
+        env_config = {"scenario": "basic", "showcase_actions": False}
+    return VecTransposeImage(DummyVecEnv([lambda: make_env(env_config)]))
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--timesteps", type=int, default=100_000)
+    p.add_argument("--config", type=Path)
+    p.add_argument("--timesteps", type=int)
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--output", type=Path, default=Path("artifacts"))
+    p.add_argument("--output", type=Path)
+    p.add_argument("--device", default="auto")
     p.add_argument("--resume", type=Path)
-    p.add_argument("--showcase", action="store_true", help="Enable forward-capable demo actions")
     args = p.parse_args()
+    config = json.loads(args.config.read_text(encoding="utf-8")) if args.config else {}
+    env_config = config.get("env", {"scenario": "basic", "showcase_actions": False})
+    ppo_config = config.get("ppo", {})
+    evaluation_config = config.get("evaluation", {})
+    output = args.output or Path(config.get("experiment", {}).get("output_root", "artifacts"))
+    timesteps = args.timesteps or int(ppo_config.get("total_timesteps", 100_000))
     # Small CNN batches are much faster without CPU thread oversubscription.
     torch.set_num_threads(1)
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
-    for d in (args.output, args.output / "checkpoints", args.output / "best"):
+    for d in (output, output / "checkpoints", output / "best"):
         d.mkdir(parents=True, exist_ok=True)
-    env, eval_env = vector_env(args.seed, args.showcase), vector_env(args.seed + 10_000, args.showcase)
+    env, eval_env = vector_env(env_config), vector_env(env_config)
     if args.resume:
-        model = PPO.load(args.resume, env=env, tensorboard_log=str(args.output / "tensorboard"))
+        model = PPO.load(args.resume, env=env, tensorboard_log=str(output / "tensorboard"), device=args.device)
     else:
-        model = PPO("CnnPolicy", env, learning_rate=2.5e-4, n_steps=512,
-                    batch_size=128, n_epochs=4, gamma=0.99, gae_lambda=0.95,
-                    clip_range=0.2, ent_coef=0.01, vf_coef=0.5, max_grad_norm=0.5,
-                    policy_kwargs={"features_extractor_kwargs": {"features_dim": 256}},
-                    tensorboard_log=str(args.output / "tensorboard"), seed=args.seed,
-                    verbose=1, device="auto")
-    checkpoint = CheckpointCallback(save_freq=10_000, save_path=str(args.output / "checkpoints"), name_prefix="ppo_vizdoom")
-    evaluation = EvalCallback(eval_env, best_model_save_path=str(args.output / "best"),
-                              log_path=str(args.output / "eval"), eval_freq=10_000,
-                              n_eval_episodes=10, deterministic=True)
-    model.learn(total_timesteps=args.timesteps, callback=[checkpoint, evaluation], progress_bar=True)
-    model.save(args.output / "ppo_vizdoom_final")
+        model = PPO("CnnPolicy", env,
+                    learning_rate=float(ppo_config.get("learning_rate", 2.5e-4)),
+                    n_steps=int(ppo_config.get("n_steps", 512)),
+                    batch_size=int(ppo_config.get("batch_size", 128)),
+                    n_epochs=int(ppo_config.get("n_epochs", 4)),
+                    gamma=float(ppo_config.get("gamma", 0.99)),
+                    gae_lambda=float(ppo_config.get("gae_lambda", 0.95)),
+                    clip_range=float(ppo_config.get("clip_range", 0.2)),
+                    ent_coef=float(ppo_config.get("entropy_coef", 0.01)),
+                    vf_coef=float(ppo_config.get("value_coef", 0.5)),
+                    max_grad_norm=float(ppo_config.get("max_grad_norm", 0.5)),
+                    policy_kwargs={"features_extractor_kwargs": {"features_dim": int(config.get("model", {}).get("features_dim", 256))}},
+                    tensorboard_log=str(output / "tensorboard"), seed=args.seed,
+                    verbose=1, device=args.device)
+    eval_frequency = int(evaluation_config.get("frequency", 10_000))
+    checkpoint = CheckpointCallback(save_freq=eval_frequency, save_path=str(output / "checkpoints"), name_prefix="ppo_vizdoom")
+    evaluation = EvalCallback(eval_env, best_model_save_path=str(output / "best"),
+                              log_path=str(output / "eval"), eval_freq=eval_frequency,
+                              n_eval_episodes=int(evaluation_config.get("episodes", 10)), deterministic=True)
+    model.learn(total_timesteps=timesteps, callback=[checkpoint, evaluation], progress_bar=True)
+    model.save(output / "ppo_vizdoom_final")
     env.close(); eval_env.close()
-    print(f"Saved final checkpoint to {args.output / 'ppo_vizdoom_final.zip'}", flush=True)
+    print(f"Saved final checkpoint to {output / 'ppo_vizdoom_final.zip'}", flush=True)
     if os.name == "nt":
         os._exit(0)
 

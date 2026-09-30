@@ -80,6 +80,51 @@ The notebook automatically selects the newest run with the largest episode
 count, uses matched seeds for OOD-versus-control comparisons, and plots reward,
 success rate, confidence intervals, and per-seed degradation.
 
+## Deadly Corridor research baseline
+
+The next experimental baseline uses the longer `deadly_corridor` scenario with
+visual-only 84x84 grayscale observations. The policy receives no health value,
+coordinates, labels, object locations, or automap. Its eight discrete actions
+cover forward/backward movement, strafing, turning, attack, and forward attack.
+
+First verify the environment and PPO checkpoint path:
+
+```bash
+python smoke_test_corridor.py
+```
+
+Before a long Linux run, verify every CUDA device independently:
+
+```bash
+python cuda_check.py
+```
+
+This performs a real matrix multiplication on each detected GPU and writes
+`artifacts/cuda_check.json`. Both configured devices must report `pass`.
+
+Run a short end-to-end training validation across the configured seeds/GPUs:
+
+```bash
+python run_multiseed.py --timesteps 4096
+```
+
+After that succeeds, start the full three-seed baseline:
+
+```bash
+python run_multiseed.py
+```
+
+The configuration is `configs/deadly_corridor_baseline.json`. Seeds 0 and 1
+start concurrently on `cuda:0` and `cuda:1`; seed 2 starts on the first free
+GPU. Each seed has an independent directory and `training.log` under
+`artifacts/deadly_corridor_baseline/`. The default budget is one million
+environment decisions per seed. TensorBoard data, checkpoints, evaluation
+records, the best model, and the final model are kept separately for each seed.
+
+Do not add Transformer memory until all three baseline runs finish and can be
+evaluated with a shared seed set. This freezes the CNN/PPO control needed for a
+fair ablation.
+
 ## Run the supplied trained demo now
 
 This checkout includes a project-local Python runtime and trained weights. From PowerShell:
