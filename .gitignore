@@ -9,3 +9,4 @@ artifacts/checkpoints/
 artifacts/tensorboard/
 artifacts/eval/
 artifacts/deadly-corridor-upstream/
+results/

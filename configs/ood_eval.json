@@ -1,0 +1,16 @@
+{
+  "model": "artifacts/demo/best/best_model.zip",
+  "scenario": "basic",
+  "episodes_per_condition": 20,
+  "seed_start": 7000,
+  "deterministic_policy": true,
+  "results_root": "results/ood",
+  "conditions": [
+    {"name": "id_control"},
+    {"name": "flicker_25", "flicker_probability": 0.25},
+    {"name": "dark_55", "brightness": 0.55},
+    {"name": "noise_25", "noise_std": 25.0},
+    {"name": "frame_skip_2", "frame_skip": 2},
+    {"name": "combined_flicker_dark", "flicker_probability": 0.25, "brightness": 0.55}
+  ]
+}

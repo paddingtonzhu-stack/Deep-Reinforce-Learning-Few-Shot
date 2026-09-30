@@ -39,6 +39,21 @@ The remaining sections document the earlier compact PPO baseline.
 
 Milestone 1: a reproducible visual-only PPO baseline for ViZDoom Basic. There is intentionally no Transformer, memory, or surprise gate yet.
 
+### OOD test suite
+
+Run the frozen PPO baseline against the in-distribution control and controlled
+observation/dynamics shifts:
+
+```bash
+python test.py
+```
+
+The suite covers missing frames, darker observations, sensor noise, a changed
+frame skip, and a combined visual shift. Every invocation creates a new UTC
+timestamped directory under `results/ood/`; previous runs are never overwritten.
+Each run saves its resolved `config.json`, full `report.json`, and
+`episodes.csv`. For a quick pipeline check, use `python test.py --episodes 2`.
+
 ## Run the supplied trained demo now
 
 This checkout includes a project-local Python runtime and trained weights. From PowerShell:
