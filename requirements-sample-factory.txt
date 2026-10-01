@@ -1,0 +1,4 @@
+sample-factory==2.1.1
+vizdoom==1.2.4
+gymnasium==0.29.1
+numpy==1.26.4

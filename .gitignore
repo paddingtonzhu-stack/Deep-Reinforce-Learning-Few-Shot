@@ -9,4 +9,5 @@ artifacts/checkpoints/
 artifacts/tensorboard/
 artifacts/eval/
 artifacts/deadly-corridor-upstream/
+artifacts/sample_factory/
 results/

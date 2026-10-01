@@ -185,6 +185,85 @@ python train.py --config configs/deadly_corridor_baseline.json --seed 2 \
 Resume mode preserves the checkpoint's existing timestep counter, so callback
 checkpoint names and TensorBoard steps continue from the restored run.
 
+## Matched Sample Factory memory ablation
+
+The downloaded `deadly-corridor-upstream` checkpoint is not a memoryless PPO
+baseline. It is a Sample Factory APPO policy with a 512-unit GRU,
+`use_rnn=True`, and recurrence 32. It is preserved unchanged under
+`artifacts/deadly-corridor-upstream/` and serves as the recurrent reference.
+
+The controlled baseline in `sf_train_corridor.py` uses the same Sample Factory
+environment, RGB 128x72 input, convolutional encoder, APPO hyperparameters,
+8 workers x 4 environments, two policies, frame skip 4, and 10-million-step
+budget. The CNN-only ablation changes only `use_rnn=False` and recurrence 1.
+This makes the comparison meaningful; the earlier Stable-Baselines3 model is
+not used as the no-memory control because its observations, rewards, network,
+optimizer, and sampling system are different.
+
+Use a separate Linux environment so the existing `.drl` environment and SB3
+results stay intact:
+
+```bash
+python3 -m venv .sf
+source .sf/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements-sample-factory.txt
+```
+
+Verify the two configurations without starting training:
+
+```bash
+python sf_train_corridor.py --memory cnn --check-config \
+  --experiment check_cnn --train_dir artifacts/config_checks
+python sf_train_corridor.py --memory gru --check-config \
+  --experiment check_gru --train_dir artifacts/config_checks
+```
+
+Run a short end-to-end CNN-only smoke test first:
+
+```bash
+python run_sf_nomemory_multiseed.py --steps 4096
+```
+
+After the smoke test succeeds, remove or rename only those smoke-test output
+directories, then run the full three-seed experiment:
+
+```bash
+python run_sf_nomemory_multiseed.py
+```
+
+Seeds 0 and 1 run concurrently on physical GPUs 0 and 1; seed 2 starts on the
+first GPU that becomes free. Each run is named `sf_corridor_cnn_seed_N` under
+`artifacts/sample_factory/`. The launcher writes both terminal output and
+`artifacts/sample_factory/sf_corridor_cnn_runs/launcher.log`; each seed has its
+own log. If a worker fails, the launcher prints its exit code or signal and the
+last 60 log lines. Before starting any worker, it also verifies CUDA visibility,
+the requested physical indices, and a real matrix multiplication on every GPU.
+
+Evaluate the preserved GRU reference on 100 reproducible held-out seeds:
+
+```bash
+python sf_evaluate_corridor.py \
+  --experiment deadly-corridor-upstream --train-dir artifacts \
+  --policy-index 0 --checkpoint best --episodes 100 --seed-start 10000 \
+  --device gpu --results-root results/sample_factory_gru_reference
+```
+
+Evaluate each trained CNN-only seed on exactly the same episode seeds by
+changing only `--experiment` and the results directory, for example:
+
+```bash
+python sf_evaluate_corridor.py \
+  --experiment sf_corridor_cnn_seed_0 --train-dir artifacts/sample_factory \
+  --policy-index 0 --checkpoint best --episodes 100 --seed-start 10000 \
+  --device gpu --results-root results/sample_factory_cnn_seed_0
+```
+
+Every evaluation creates a timestamped directory containing `config.json`,
+`episodes.csv`, `report.json`, and `run.log`. It reports native scaled reward,
+completion, death, timeout, and episode frames. Evaluation is deterministic,
+the policy is frozen, and no test episode performs a training update.
+
 ## Run the supplied trained demo now
 
 This checkout includes a project-local Python runtime and trained weights. From PowerShell:
