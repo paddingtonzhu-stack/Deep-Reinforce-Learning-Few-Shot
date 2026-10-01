@@ -53,7 +53,11 @@ def validate_gpus(gpus, logger):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--memory", choices=("transformer", "gtrxl"), default="transformer")
+    parser.add_argument(
+        "--memory",
+        choices=("transformer", "gtrxl", "gru_attention"),
+        default="transformer",
+    )
     parser.add_argument("--seeds", default="0,1,2")
     parser.add_argument("--gpus", default="0,1")
     parser.add_argument("--train-dir", type=Path)

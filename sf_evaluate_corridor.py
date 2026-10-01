@@ -216,6 +216,10 @@ def main():
             "transformer_dim": getattr(cfg, "transformer_dim", None),
             "transformer_layers": getattr(cfg, "transformer_layers", None),
             "transformer_heads": getattr(cfg, "transformer_heads", None),
+            "gtrxl_identity_bias": getattr(cfg, "gtrxl_identity_bias", None),
+            "gru_attention_hidden_size": getattr(cfg, "gru_attention_hidden_size", None),
+            "gru_attention_dim": getattr(cfg, "gru_attention_dim", None),
+            "gru_attention_gate_init": getattr(cfg, "gru_attention_gate_init", None),
         },
         "metrics": {
             "mean_reward": statistics.fmean(row["reward"] for row in rows),

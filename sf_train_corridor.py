@@ -68,7 +68,11 @@ def has_option(argv, name):
 def parse_corridor_cfg(argv):
     parser, _ = parse_sf_args(argv=argv)
     add_doom_env_args(parser)
-    parser.add_argument("--memory", choices=("cnn", "gru", "transformer", "gtrxl"), default="cnn")
+    parser.add_argument(
+        "--memory",
+        choices=("cnn", "gru", "transformer", "gtrxl", "gru_attention"),
+        default="cnn",
+    )
     parser.add_argument("--transformer_context", type=int, default=32)
     parser.add_argument("--transformer_dim", type=int, default=256)
     parser.add_argument("--transformer_layers", type=int, default=2)
@@ -76,13 +80,20 @@ def parse_corridor_cfg(argv):
     parser.add_argument("--transformer_ff_dim", type=int, default=512)
     parser.add_argument("--transformer_dropout", type=float, default=0.0)
     parser.add_argument("--gtrxl_identity_bias", type=float, default=2.0)
+    parser.add_argument("--gru_attention_hidden_size", type=int, default=512)
+    parser.add_argument("--gru_attention_dim", type=int, default=128)
+    parser.add_argument("--gru_attention_gate_init", type=float, default=-2.0)
     doom_override_defaults(parser)
     return parse_full_cfg(parser, argv)
 
 
 def main():
     custom = argparse.ArgumentParser(add_help=False)
-    custom.add_argument("--memory", choices=("cnn", "gru", "transformer", "gtrxl"), default="cnn")
+    custom.add_argument(
+        "--memory",
+        choices=("cnn", "gru", "transformer", "gtrxl", "gru_attention"),
+        default="cnn",
+    )
     custom.add_argument("--transformer-context", type=int, default=32)
     custom.add_argument("--transformer-dim", type=int)
     custom.add_argument("--transformer-layers", type=int, default=2)
@@ -90,6 +101,9 @@ def main():
     custom.add_argument("--transformer-ff-dim", type=int, default=512)
     custom.add_argument("--transformer-dropout", type=float, default=0.0)
     custom.add_argument("--gtrxl-identity-bias", type=float, default=2.0)
+    custom.add_argument("--gru-attention-hidden-size", type=int, default=512)
+    custom.add_argument("--gru-attention-dim", type=int, default=128)
+    custom.add_argument("--gru-attention-gate-init", type=float, default=-2.0)
     custom.add_argument("--check-config", action="store_true")
     known, remaining = custom.parse_known_args()
     transformer_dim = known.transformer_dim
@@ -112,6 +126,9 @@ def main():
         "transformer_ff_dim": known.transformer_ff_dim,
         "transformer_dropout": known.transformer_dropout,
         "gtrxl_identity_bias": known.gtrxl_identity_bias,
+        "gru_attention_hidden_size": known.gru_attention_hidden_size,
+        "gru_attention_dim": known.gru_attention_dim,
+        "gru_attention_gate_init": known.gru_attention_gate_init,
     }
     for name, value in custom_cfg.items():
         if not has_option(argv, name):
@@ -135,6 +152,17 @@ def main():
             "rnn_num_layers": "1",
             # Sample Factory uses this field to enable recurrent trajectory
             # handling; the registered model-core factory supplies GTrXL.
+            "rnn_type": "gru",
+        },
+        "gru_attention": {
+            "use_rnn": "True",
+            "recurrence": str(transformer_context),
+            "rnn_size": str(
+                known.gru_attention_hidden_size
+                + transformer_context * known.gru_attention_dim
+                + 1
+            ),
+            "rnn_num_layers": "1",
             "rnn_type": "gru",
         },
     }[known.memory]

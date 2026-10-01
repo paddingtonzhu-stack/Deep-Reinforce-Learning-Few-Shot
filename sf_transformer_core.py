@@ -236,11 +236,105 @@ class GTrXLMemoryCore(TransformerMemoryCore):
         return output, new_state
 
 
+class GRUAttentionMemoryCore(TransformerMemoryCore):
+    """GRU recurrence augmented by attention over recent GRU states.
+
+    The attention output projection is zero-initialized, so the core starts as
+    a conventional 512-unit GRU and learns an optional history-dependent
+    correction without disrupting the proven recurrent pathway.
+    """
+
+    def __init__(self, cfg, input_size: int):
+        ModelCore.__init__(self, cfg)
+        self.hidden_size = int(cfg.gru_attention_hidden_size)
+        self.attention_dim = int(cfg.gru_attention_dim)
+        self.context_len = int(cfg.transformer_context)
+        expected_state_size = (
+            self.hidden_size + self.context_len * self.attention_dim + 1
+        )
+        if int(cfg.rnn_size) != expected_state_size:
+            raise ValueError(
+                "GRU-attention state requires "
+                f"rnn_size={expected_state_size}, got {cfg.rnn_size}"
+            )
+        if self.attention_dim % int(cfg.transformer_heads) != 0:
+            raise ValueError("gru_attention_dim must be divisible by transformer_heads")
+        if self.hidden_size != input_size:
+            raise ValueError(
+                "GRU-attention currently preserves the matched 512-dimensional "
+                f"core interface, got hidden_size={self.hidden_size}, input_size={input_size}"
+            )
+
+        self.gru = nn.GRUCell(input_size, self.hidden_size)
+        self.memory_projection = nn.Linear(self.hidden_size, self.attention_dim)
+        self.query_projection = nn.Linear(self.hidden_size, self.attention_dim)
+        self.position_embedding = nn.Parameter(
+            torch.zeros(1, self.context_len, self.attention_dim)
+        )
+        self.attention_norm = nn.LayerNorm(self.attention_dim)
+        self.attention = nn.MultiheadAttention(
+            embed_dim=self.attention_dim,
+            num_heads=int(cfg.transformer_heads),
+            dropout=float(cfg.transformer_dropout),
+            batch_first=True,
+        )
+        self.output_projection = nn.Linear(self.attention_dim, self.hidden_size)
+        self.attention_gate = nn.Parameter(
+            torch.tensor(float(cfg.gru_attention_gate_init))
+        )
+        self.core_output_size = self.hidden_size
+
+        nn.init.normal_(self.position_embedding, mean=0.0, std=0.02)
+        # Preserve the GRU policy at initialization. Gradients immediately reach
+        # this projection; once it moves away from zero they reach attention too.
+        nn.init.zeros_(self.output_projection.weight)
+        nn.init.zeros_(self.output_projection.bias)
+
+    def _step(self, x: torch.Tensor, state: torch.Tensor):
+        batch = x.shape[0]
+        hidden = state[:, : self.hidden_size]
+        memory_end = self.hidden_size + self.context_len * self.attention_dim
+        memory = state[:, self.hidden_size : memory_end].reshape(
+            batch, self.context_len, self.attention_dim
+        )
+        lengths = state[:, -1].round().long().clamp(0, self.context_len)
+
+        hidden = self.gru(x, hidden)
+        token = self.memory_projection(hidden).unsqueeze(1)
+        memory = torch.cat((memory[:, 1:], token), dim=1)
+        lengths = torch.clamp(lengths + 1, max=self.context_len)
+
+        positions = torch.arange(self.context_len, device=x.device).unsqueeze(0)
+        padding_mask = positions < (self.context_len - lengths).unsqueeze(1)
+        keys = self.attention_norm(memory + self.position_embedding)
+        query = self.attention_norm(self.query_projection(hidden)).unsqueeze(1)
+        attended, _ = self.attention(
+            query,
+            keys,
+            keys,
+            key_padding_mask=padding_mask,
+            need_weights=False,
+        )
+        correction = self.output_projection(attended[:, 0])
+        output = hidden + torch.sigmoid(self.attention_gate) * correction
+        new_state = torch.cat(
+            (
+                hidden,
+                memory.reshape(batch, -1),
+                lengths.to(memory.dtype).unsqueeze(1),
+            ),
+            dim=1,
+        )
+        return output, new_state
+
+
 def make_temporal_core(cfg, input_size: int):
     if getattr(cfg, "memory", None) == "transformer":
         return TransformerMemoryCore(cfg, input_size)
     if getattr(cfg, "memory", None) == "gtrxl":
         return GTrXLMemoryCore(cfg, input_size)
+    if getattr(cfg, "memory", None) == "gru_attention":
+        return GRUAttentionMemoryCore(cfg, input_size)
     return default_make_core_func(cfg, input_size)
 
 
