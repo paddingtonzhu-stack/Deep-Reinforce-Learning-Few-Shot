@@ -53,18 +53,24 @@ def validate_gpus(gpus, logger):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--memory", choices=("transformer", "gtrxl"), default="transformer")
     parser.add_argument("--seeds", default="0,1,2")
     parser.add_argument("--gpus", default="0,1")
-    parser.add_argument("--train-dir", type=Path, default=Path("artifacts/sample_factory_transformer"))
+    parser.add_argument("--train-dir", type=Path)
     parser.add_argument("--steps", type=int, default=10_000_000)
     parser.add_argument("--context", type=int, default=32)
-    parser.add_argument("--model-dim", type=int, default=256)
+    parser.add_argument("--model-dim", type=int)
     parser.add_argument("--layers", type=int, default=2)
     parser.add_argument("--heads", type=int, default=4)
     args = parser.parse_args()
+    model_dim = args.model_dim
+    if model_dim is None:
+        model_dim = 176 if args.memory == "gtrxl" else 256
+    if args.train_dir is None:
+        args.train_dir = Path(f"artifacts/sample_factory_{args.memory}")
     seeds = [int(value) for value in args.seeds.split(",")]
     gpus = [value.strip() for value in args.gpus.split(",")]
-    group_root = args.train_dir / "sf_corridor_transformer_runs"
+    group_root = args.train_dir / f"sf_corridor_{args.memory}_runs"
     logger = logger_for(group_root)
     try:
         validate_gpus(gpus, logger)
@@ -79,7 +85,7 @@ def main():
             if gpu in active or not pending:
                 continue
             seed = pending.pop(0)
-            experiment = f"sf_corridor_transformer_seed_{seed}"
+            experiment = f"sf_corridor_{args.memory}_seed_{seed}"
             log_path = group_root / f"seed_{seed}.log"
             handle = log_path.open("a", encoding="utf-8")
             handle.write(
@@ -90,9 +96,9 @@ def main():
             command = [
                 sys.executable,
                 "sf_train_corridor.py",
-                "--memory=transformer",
+                f"--memory={args.memory}",
                 f"--transformer-context={args.context}",
-                f"--transformer-dim={args.model_dim}",
+                f"--transformer-dim={model_dim}",
                 f"--transformer-layers={args.layers}",
                 f"--transformer-heads={args.heads}",
                 f"--experiment={experiment}",
@@ -132,7 +138,7 @@ def main():
     if failures:
         logger.error("Failed seeds: %s", failures)
         raise SystemExit(1)
-    logger.info("All matched Transformer-memory Sample Factory runs completed successfully")
+    logger.info("All matched %s-memory Sample Factory runs completed successfully", args.memory)
 
 
 if __name__ == "__main__":

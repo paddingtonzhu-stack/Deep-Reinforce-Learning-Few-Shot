@@ -68,28 +68,36 @@ def has_option(argv, name):
 def parse_corridor_cfg(argv):
     parser, _ = parse_sf_args(argv=argv)
     add_doom_env_args(parser)
-    parser.add_argument("--memory", choices=("cnn", "gru", "transformer"), default="cnn")
+    parser.add_argument("--memory", choices=("cnn", "gru", "transformer", "gtrxl"), default="cnn")
     parser.add_argument("--transformer_context", type=int, default=32)
     parser.add_argument("--transformer_dim", type=int, default=256)
     parser.add_argument("--transformer_layers", type=int, default=2)
     parser.add_argument("--transformer_heads", type=int, default=4)
     parser.add_argument("--transformer_ff_dim", type=int, default=512)
     parser.add_argument("--transformer_dropout", type=float, default=0.0)
+    parser.add_argument("--gtrxl_identity_bias", type=float, default=2.0)
     doom_override_defaults(parser)
     return parse_full_cfg(parser, argv)
 
 
 def main():
     custom = argparse.ArgumentParser(add_help=False)
-    custom.add_argument("--memory", choices=("cnn", "gru", "transformer"), default="cnn")
+    custom.add_argument("--memory", choices=("cnn", "gru", "transformer", "gtrxl"), default="cnn")
     custom.add_argument("--transformer-context", type=int, default=32)
-    custom.add_argument("--transformer-dim", type=int, default=256)
+    custom.add_argument("--transformer-dim", type=int)
     custom.add_argument("--transformer-layers", type=int, default=2)
     custom.add_argument("--transformer-heads", type=int, default=4)
     custom.add_argument("--transformer-ff-dim", type=int, default=512)
     custom.add_argument("--transformer-dropout", type=float, default=0.0)
+    custom.add_argument("--gtrxl-identity-bias", type=float, default=2.0)
     custom.add_argument("--check-config", action="store_true")
     known, remaining = custom.parse_known_args()
+    transformer_dim = known.transformer_dim
+    if transformer_dim is None:
+        # Gated residuals add parameters. Width 176 keeps the default GTrXL
+        # core (~1.545M) close to the 512-unit GRU core (~1.576M), while the
+        # original vanilla Transformer retains its historical width of 256.
+        transformer_dim = 176 if known.memory == "gtrxl" else 256
     argv = list(remaining)
     for name, value in MATCHED_DEFAULTS.items():
         if not has_option(argv, name):
@@ -98,18 +106,18 @@ def main():
     custom_cfg = {
         "memory": known.memory,
         "transformer_context": known.transformer_context,
-        "transformer_dim": known.transformer_dim,
+        "transformer_dim": transformer_dim,
         "transformer_layers": known.transformer_layers,
         "transformer_heads": known.transformer_heads,
         "transformer_ff_dim": known.transformer_ff_dim,
         "transformer_dropout": known.transformer_dropout,
+        "gtrxl_identity_bias": known.gtrxl_identity_bias,
     }
     for name, value in custom_cfg.items():
         if not has_option(argv, name):
             argv.append(f"--{name}={value}")
 
     transformer_context = known.transformer_context
-    transformer_dim = known.transformer_dim
     memory_options = {
         "cnn": {"use_rnn": "False", "recurrence": "1"},
         "gru": {"use_rnn": "True", "recurrence": "32", "rnn_size": "512", "rnn_type": "gru"},
@@ -118,6 +126,15 @@ def main():
             "recurrence": str(transformer_context),
             "rnn_size": str(transformer_context * transformer_dim + 1),
             "rnn_num_layers": "1",
+            "rnn_type": "gru",
+        },
+        "gtrxl": {
+            "use_rnn": "True",
+            "recurrence": str(transformer_context),
+            "rnn_size": str(transformer_context * transformer_dim + 1),
+            "rnn_num_layers": "1",
+            # Sample Factory uses this field to enable recurrent trajectory
+            # handling; the registered model-core factory supplies GTrXL.
             "rnn_type": "gru",
         },
     }[known.memory]
