@@ -10,4 +10,5 @@ artifacts/tensorboard/
 artifacts/eval/
 artifacts/deadly-corridor-upstream/
 artifacts/sample_factory/
+artifacts/sample_factory_transformer/
 results/

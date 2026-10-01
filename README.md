@@ -264,6 +264,66 @@ Every evaluation creates a timestamped directory containing `config.json`,
 completion, death, timeout, and episode frames. Evaluation is deterministic,
 the policy is frozen, and no test episode performs a training update.
 
+### Transformer temporal-memory experiment
+
+`sf_transformer_core.py` replaces only the GRU/identity temporal core. The
+visual encoder, policy and value heads, APPO settings, rollout length, reward,
+workers, frame skip, and training budget remain matched. Its default core is:
+
+```text
+CNN feature 512 -> Linear 256 -> 32-token memory
+                -> 2 Transformer encoder layers, 4 heads, FFN 512
+                -> Linear 512 -> unchanged policy/value heads
+```
+
+The token memory is reset at episode boundaries. During rollout inference it
+stores the previous 32 projected visual features; during learning it follows
+Sample Factory's packed episode sequences, so attention and gradients never
+cross a death, completion, or reset boundary. The temporal core has a similar
+parameter scale to the 512-unit GRU and uses zero dropout.
+
+After pulling the latest code in the existing `.sf` environment, validate the
+configuration without training:
+
+```bash
+python sf_train_corridor.py --memory transformer --check-config \
+  --experiment check_transformer --train_dir artifacts/config_checks
+```
+
+Run a short three-seed GPU smoke test first:
+
+```bash
+python run_sf_transformer_multiseed.py --steps 4096
+```
+
+If all seeds exit with code zero, preserve the smoke output and start the full
+matched experiment:
+
+```bash
+mv artifacts/sample_factory_transformer artifacts/sample_factory_transformer_smoke
+python run_sf_transformer_multiseed.py
+```
+
+The launcher checks both GPUs before starting, runs seeds 0 and 1 concurrently,
+starts seed 2 on the first available GPU, writes one log per seed plus a launcher
+log, and prints the final 60 lines after any failure. Transformer attention will
+usually make this experiment slower than the CNN and GRU runs.
+
+Evaluate both policies from every trained seed on the same held-out seeds:
+
+```bash
+for seed in 0 1 2; do
+  for policy in 0 1; do
+    python sf_evaluate_corridor.py \
+      --experiment sf_corridor_transformer_seed_${seed} \
+      --train-dir artifacts/sample_factory_transformer \
+      --policy-index ${policy} --checkpoint best \
+      --episodes 100 --seed-start 10000 --device gpu \
+      --results-root results/sample_factory_transformer_seed_${seed}_policy_${policy}
+  done
+done
+```
+
 ## Run the supplied trained demo now
 
 This checkout includes a project-local Python runtime and trained weights. From PowerShell:

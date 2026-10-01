@@ -6,8 +6,12 @@ import sys
 if not hasattr(os, "getuid"):
     os.getuid = lambda: 0
 
+from sample_factory.cfg.arguments import parse_full_cfg, parse_sf_args
 from sample_factory.train import run_rl
-from sf_examples.vizdoom.train_vizdoom import parse_vizdoom_cfg, register_vizdoom_components
+from sf_examples.vizdoom.doom.doom_params import add_doom_env_args, doom_override_defaults
+from sf_examples.vizdoom.train_vizdoom import register_vizdoom_components
+
+from sf_transformer_core import register_transformer_core
 
 
 MATCHED_DEFAULTS = {
@@ -61,9 +65,29 @@ def has_option(argv, name):
     return any(arg == prefix or arg.startswith(prefix + "=") for arg in argv)
 
 
+def parse_corridor_cfg(argv):
+    parser, _ = parse_sf_args(argv=argv)
+    add_doom_env_args(parser)
+    parser.add_argument("--memory", choices=("cnn", "gru", "transformer"), default="cnn")
+    parser.add_argument("--transformer_context", type=int, default=32)
+    parser.add_argument("--transformer_dim", type=int, default=256)
+    parser.add_argument("--transformer_layers", type=int, default=2)
+    parser.add_argument("--transformer_heads", type=int, default=4)
+    parser.add_argument("--transformer_ff_dim", type=int, default=512)
+    parser.add_argument("--transformer_dropout", type=float, default=0.0)
+    doom_override_defaults(parser)
+    return parse_full_cfg(parser, argv)
+
+
 def main():
     custom = argparse.ArgumentParser(add_help=False)
-    custom.add_argument("--memory", choices=("cnn", "gru"), default="cnn")
+    custom.add_argument("--memory", choices=("cnn", "gru", "transformer"), default="cnn")
+    custom.add_argument("--transformer-context", type=int, default=32)
+    custom.add_argument("--transformer-dim", type=int, default=256)
+    custom.add_argument("--transformer-layers", type=int, default=2)
+    custom.add_argument("--transformer-heads", type=int, default=4)
+    custom.add_argument("--transformer-ff-dim", type=int, default=512)
+    custom.add_argument("--transformer-dropout", type=float, default=0.0)
     custom.add_argument("--check-config", action="store_true")
     known, remaining = custom.parse_known_args()
     argv = list(remaining)
@@ -71,18 +95,41 @@ def main():
         if not has_option(argv, name):
             argv.append(f"--{name}={value}")
 
+    custom_cfg = {
+        "memory": known.memory,
+        "transformer_context": known.transformer_context,
+        "transformer_dim": known.transformer_dim,
+        "transformer_layers": known.transformer_layers,
+        "transformer_heads": known.transformer_heads,
+        "transformer_ff_dim": known.transformer_ff_dim,
+        "transformer_dropout": known.transformer_dropout,
+    }
+    for name, value in custom_cfg.items():
+        if not has_option(argv, name):
+            argv.append(f"--{name}={value}")
+
+    transformer_context = known.transformer_context
+    transformer_dim = known.transformer_dim
     memory_options = {
         "cnn": {"use_rnn": "False", "recurrence": "1"},
         "gru": {"use_rnn": "True", "recurrence": "32", "rnn_size": "512", "rnn_type": "gru"},
+        "transformer": {
+            "use_rnn": "True",
+            "recurrence": str(transformer_context),
+            "rnn_size": str(transformer_context * transformer_dim + 1),
+            "rnn_num_layers": "1",
+            "rnn_type": "gru",
+        },
     }[known.memory]
     for name, value in memory_options.items():
         if not has_option(argv, name):
             argv.append(f"--{name}={value}")
 
     register_vizdoom_components()
-    cfg = parse_vizdoom_cfg(argv=argv)
+    register_transformer_core()
+    cfg = parse_corridor_cfg(argv)
     print(
-        f"Matched Sample Factory run: memory={known.memory}, use_rnn={cfg.use_rnn}, "
+        f"Matched Sample Factory run: memory={cfg.memory}, use_rnn={cfg.use_rnn}, "
         f"recurrence={cfg.recurrence}, workers={cfg.num_workers}, "
         f"envs_per_worker={cfg.num_envs_per_worker}, budget={cfg.train_for_env_steps}",
         flush=True,

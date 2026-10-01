@@ -32,6 +32,8 @@ from sample_factory.utils.attr_dict import AttrDict
 from sf_examples.vizdoom.doom.doom_utils import DOOM_ENVS, make_doom_env_from_spec
 from sf_examples.vizdoom.train_vizdoom import parse_vizdoom_cfg, register_vizdoom_components
 
+from sf_transformer_core import register_transformer_core
+
 
 EVAL_ENV = "doom_deadly_corridor_outcomes"
 
@@ -51,6 +53,7 @@ class OutcomeInfoWrapper(gym.Wrapper):
 
 def register_components():
     register_vizdoom_components()
+    register_transformer_core()
     spec = next(spec for spec in DOOM_ENVS if spec.name == "doom_deadly_corridor")
 
     def make_eval_env(_env_name, cfg, env_config, render_mode=None, **kwargs):
@@ -77,6 +80,7 @@ def make_logger(output_dir: Path):
 def checkpoint_path(cfg, policy_id: int, kind: str) -> Path:
     prefix = "best" if kind == "best" else "checkpoint"
     paths = Learner.get_checkpoints(Learner.checkpoint_dir(cfg, policy_id), f"{prefix}_*")
+    paths = [path for path in paths if Path(path).suffix == ".pth"]
     if not paths:
         raise FileNotFoundError(f"No {kind} checkpoint for policy {policy_id} in {Learner.checkpoint_dir(cfg, policy_id)}")
     return Path(paths[-1])
@@ -201,12 +205,17 @@ def main():
         "episodes": args.episodes,
         "seed_start": args.seed_start,
         "architecture": {
+            "memory": getattr(cfg, "memory", "gru" if cfg.use_rnn else "cnn"),
             "use_rnn": bool(cfg.use_rnn),
             "recurrence": int(cfg.recurrence),
             "rnn_type": getattr(cfg, "rnn_type", None),
             "rnn_size": int(getattr(cfg, "rnn_size", 0)),
             "resolution": [int(cfg.res_w), int(cfg.res_h)],
             "frameskip": int(cfg.env_frameskip),
+            "transformer_context": getattr(cfg, "transformer_context", None),
+            "transformer_dim": getattr(cfg, "transformer_dim", None),
+            "transformer_layers": getattr(cfg, "transformer_layers", None),
+            "transformer_heads": getattr(cfg, "transformer_heads", None),
         },
         "metrics": {
             "mean_reward": statistics.fmean(row["reward"] for row in rows),
