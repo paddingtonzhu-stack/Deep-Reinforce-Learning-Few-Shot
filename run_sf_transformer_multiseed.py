@@ -60,6 +60,7 @@ def main():
     )
     parser.add_argument("--seeds", default="0,1,2")
     parser.add_argument("--gpus", default="0,1")
+    parser.add_argument("--num-policies", type=int, default=2)
     parser.add_argument("--train-dir", type=Path)
     parser.add_argument("--steps", type=int, default=10_000_000)
     parser.add_argument("--context", type=int, default=32)
@@ -67,6 +68,8 @@ def main():
     parser.add_argument("--layers", type=int, default=2)
     parser.add_argument("--heads", type=int, default=4)
     args = parser.parse_args()
+    if args.num_policies < 1:
+        parser.error("--num-policies must be at least 1")
     model_dim = args.model_dim
     if model_dim is None:
         model_dim = 176 if args.memory == "gtrxl" else 256
@@ -109,6 +112,7 @@ def main():
                 f"--train_dir={args.train_dir}",
                 f"--seed={seed}",
                 f"--train_for_env_steps={args.steps}",
+                f"--num_policies={args.num_policies}",
             ]
             env = dict(os.environ)
             env["CUDA_VISIBLE_DEVICES"] = gpu
