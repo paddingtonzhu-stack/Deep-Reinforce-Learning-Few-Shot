@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import torch
@@ -80,7 +81,12 @@ def main():
             seed = pending.pop(0)
             experiment = f"sf_corridor_transformer_seed_{seed}"
             log_path = group_root / f"seed_{seed}.log"
-            handle = log_path.open("w", encoding="utf-8")
+            handle = log_path.open("a", encoding="utf-8")
+            handle.write(
+                f"\n===== launcher start {datetime.now(timezone.utc).isoformat()} "
+                f"seed={seed} gpu={gpu} =====\n"
+            )
+            handle.flush()
             command = [
                 sys.executable,
                 "sf_train_corridor.py",
