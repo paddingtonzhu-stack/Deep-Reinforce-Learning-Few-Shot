@@ -32,7 +32,7 @@ from sample_factory.utils.attr_dict import AttrDict
 from sf_examples.vizdoom.doom.doom_utils import DOOM_ENVS, make_doom_env_from_spec
 from sf_examples.vizdoom.train_vizdoom import parse_vizdoom_cfg, register_vizdoom_components
 
-from sf_transformer_core import register_transformer_core
+from sf_transformer_core import GRUAttentionMemoryCore, register_transformer_core
 
 
 EVAL_ENV = "doom_deadly_corridor_outcomes"
@@ -110,6 +110,7 @@ def main():
     parser.add_argument("--seed-start", type=int, default=10_000)
     parser.add_argument("--device", choices=("cpu", "gpu"), default="gpu")
     parser.add_argument("--results-root", type=Path, default=Path("results/sample_factory_corridor"))
+    parser.add_argument("--disable-gru-attention", action="store_true")
     args = parser.parse_args()
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ")
@@ -142,6 +143,20 @@ def main():
     logger.info("Loading %s policy %d from %s", args.checkpoint, args.policy_index, model_path)
     checkpoint = torch.load(model_path, map_location=device, weights_only=False)
     actor_critic.load_state_dict(checkpoint["model"])
+    if args.disable_gru_attention:
+        cores = [
+            module
+            for module in actor_critic.modules()
+            if isinstance(module, GRUAttentionMemoryCore)
+        ]
+        if not cores:
+            raise ValueError(
+                "--disable-gru-attention requires a GRU-attention checkpoint"
+            )
+        with torch.no_grad():
+            for core in cores:
+                core.attention_gate.fill_(-100.0)
+        logger.info("Disabled GRU-attention correction in %d temporal core(s)", len(cores))
     probe_env.close()
 
     rows = []
