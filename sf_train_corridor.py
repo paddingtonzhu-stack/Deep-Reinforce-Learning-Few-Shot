@@ -11,6 +11,7 @@ from sample_factory.train import run_rl
 from sf_examples.vizdoom.doom.doom_params import add_doom_env_args, doom_override_defaults
 from sf_examples.vizdoom.train_vizdoom import register_vizdoom_components
 
+from sf_corridor_objective import COMPLETION_ENV, register_corridor_completion_env
 from sf_transformer_core import register_transformer_core
 
 
@@ -104,6 +105,11 @@ def main():
     custom.add_argument("--gru-attention-hidden-size", type=int, default=512)
     custom.add_argument("--gru-attention-dim", type=int, default=128)
     custom.add_argument("--gru-attention-gate-init", type=float, default=-2.0)
+    custom.add_argument(
+        "--completion-objective",
+        action="store_true",
+        help="Use binary corridor completion as Sample Factory true_objective (for PBT).",
+    )
     custom.add_argument("--check-config", action="store_true")
     known, remaining = custom.parse_known_args()
     transformer_dim = known.transformer_dim
@@ -113,6 +119,8 @@ def main():
         # original vanilla Transformer retains its historical width of 256.
         transformer_dim = 176 if known.memory == "gtrxl" else 256
     argv = list(remaining)
+    if known.completion_objective and not has_option(argv, "env"):
+        argv.append(f"--env={COMPLETION_ENV}")
     for name, value in MATCHED_DEFAULTS.items():
         if not has_option(argv, name):
             argv.append(f"--{name}={value}")
@@ -171,6 +179,7 @@ def main():
             argv.append(f"--{name}={value}")
 
     register_vizdoom_components()
+    register_corridor_completion_env()
     register_transformer_core()
     cfg = parse_corridor_cfg(argv)
     print(
