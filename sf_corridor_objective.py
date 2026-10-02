@@ -20,10 +20,12 @@ class CorridorCompletionObjective(gym.Wrapper):
         return obs, reward, terminated, truncated, info
 
 
-def make_completion_env(spec, env_name, cfg, env_config, **kwargs):
+def make_completion_env(spec, env_name, cfg, env_config, render_mode=None, **kwargs):
     from sf_examples.vizdoom.doom.doom_utils import make_doom_env_from_spec
 
-    env = make_doom_env_from_spec(spec, env_name, cfg, env_config, **kwargs)
+    env = make_doom_env_from_spec(
+        spec, env_name, cfg, env_config, render_mode=render_mode, **kwargs
+    )
     return CorridorCompletionObjective(env)
 
 
