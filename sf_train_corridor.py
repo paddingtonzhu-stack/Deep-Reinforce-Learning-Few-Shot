@@ -12,7 +12,8 @@ from sf_examples.vizdoom.doom.doom_params import add_doom_env_args, doom_overrid
 from sf_examples.vizdoom.train_vizdoom import register_vizdoom_components
 
 from sf_corridor_objective import COMPLETION_ENV, register_corridor_completion_env
-from sf_transformer_core import register_transformer_core
+from sf_methods import TRAINABLE_METHODS, format_method_catalog, method_for_training, recurrent_options
+from sf_temporal_cores import register_temporal_core
 
 
 MATCHED_DEFAULTS = {
@@ -95,6 +96,12 @@ def main():
         choices=("cnn", "gru", "transformer", "gtrxl", "gru_attention"),
         default="cnn",
     )
+    custom.add_argument(
+        "--method",
+        choices=TRAINABLE_METHODS,
+        help="Canonical experiment method (preferred over the legacy --memory flag).",
+    )
+    custom.add_argument("--list-methods", action="store_true")
     custom.add_argument("--transformer-context", type=int, default=32)
     custom.add_argument("--transformer-dim", type=int)
     custom.add_argument("--transformer-layers", type=int, default=2)
@@ -112,13 +119,27 @@ def main():
     )
     custom.add_argument("--check-config", action="store_true")
     known, remaining = custom.parse_known_args()
+    if known.list_methods:
+        print(format_method_catalog())
+        return 0
+    selected_method = method_for_training(known.method) if known.method else None
+    memory = selected_method.memory if selected_method else known.memory
+    if known.method and any(
+        arg == "--memory" or arg.startswith("--memory=") for arg in sys.argv[1:]
+    ):
+        custom.error("use --method or --memory, not both")
     transformer_dim = known.transformer_dim
     if transformer_dim is None:
         # Gated residuals add parameters. Width 176 keeps the default GTrXL
         # core (~1.545M) close to the 512-unit GRU core (~1.576M), while the
         # original vanilla Transformer retains its historical width of 256.
-        transformer_dim = 176 if known.memory == "gtrxl" else 256
+        transformer_dim = 176 if memory == "gtrxl" else 256
     argv = list(remaining)
+    if selected_method and selected_method.recurrence is not None:
+        if not has_option(argv, "rollout"):
+            argv.append(f"--rollout={selected_method.recurrence}")
+        if not has_option(argv, "recurrence"):
+            argv.append(f"--recurrence={selected_method.recurrence}")
     if known.completion_objective and not has_option(argv, "env"):
         argv.append(f"--env={COMPLETION_ENV}")
     for name, value in MATCHED_DEFAULTS.items():
@@ -126,7 +147,7 @@ def main():
             argv.append(f"--{name}={value}")
 
     custom_cfg = {
-        "memory": known.memory,
+        "memory": memory,
         "transformer_context": known.transformer_context,
         "transformer_dim": transformer_dim,
         "transformer_layers": known.transformer_layers,
@@ -142,48 +163,24 @@ def main():
         if not has_option(argv, name):
             argv.append(f"--{name}={value}")
 
-    transformer_context = known.transformer_context
-    memory_options = {
-        "cnn": {"use_rnn": "False", "recurrence": "1"},
-        "gru": {"use_rnn": "True", "recurrence": "32", "rnn_size": "512", "rnn_type": "gru"},
-        "transformer": {
-            "use_rnn": "True",
-            "recurrence": str(transformer_context),
-            "rnn_size": str(transformer_context * transformer_dim + 1),
-            "rnn_num_layers": "1",
-            "rnn_type": "gru",
-        },
-        "gtrxl": {
-            "use_rnn": "True",
-            "recurrence": str(transformer_context),
-            "rnn_size": str(transformer_context * transformer_dim + 1),
-            "rnn_num_layers": "1",
-            # Sample Factory uses this field to enable recurrent trajectory
-            # handling; the registered model-core factory supplies GTrXL.
-            "rnn_type": "gru",
-        },
-        "gru_attention": {
-            "use_rnn": "True",
-            "recurrence": str(transformer_context),
-            "rnn_size": str(
-                known.gru_attention_hidden_size
-                + transformer_context * known.gru_attention_dim
-                + 1
-            ),
-            "rnn_num_layers": "1",
-            "rnn_type": "gru",
-        },
-    }[known.memory]
+    memory_options = recurrent_options(
+        memory,
+        known.transformer_context,
+        transformer_dim,
+        known.gru_attention_hidden_size,
+        known.gru_attention_dim,
+    )
     for name, value in memory_options.items():
         if not has_option(argv, name):
             argv.append(f"--{name}={value}")
 
     register_vizdoom_components()
     register_corridor_completion_env()
-    register_transformer_core()
+    register_temporal_core()
     cfg = parse_corridor_cfg(argv)
     print(
-        f"Matched Sample Factory run: memory={cfg.memory}, use_rnn={cfg.use_rnn}, "
+        f"Matched Sample Factory run: method={known.method or memory}, memory={cfg.memory}, "
+        f"use_rnn={cfg.use_rnn}, "
         f"recurrence={cfg.recurrence}, workers={cfg.num_workers}, "
         f"envs_per_worker={cfg.num_envs_per_worker}, budget={cfg.train_for_env_steps}",
         flush=True,

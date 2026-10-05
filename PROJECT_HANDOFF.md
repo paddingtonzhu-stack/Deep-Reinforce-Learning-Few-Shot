@@ -1,5 +1,9 @@
 # ViZDoom Temporal-Memory Experiment Handoff
 
+> Historical handoff from 2026-10-01. It records the state at that time and is
+> not the current experiment guide. Use `SAMPLE_FACTORY_METHODS.md` for the
+> current method taxonomy, results, and commands.
+
 Updated: 2026-10-01 (Europe/Berlin)
 
 ## Repository

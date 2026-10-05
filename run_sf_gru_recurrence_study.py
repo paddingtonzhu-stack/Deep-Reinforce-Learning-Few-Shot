@@ -94,10 +94,11 @@ def main():
         for seed in args.seeds:
             experiment = f"sf_corridor_gru_r{recurrence}_seed_{seed}"
             log_path = group_root / f"r{recurrence}_seed_{seed}.log"
+            method = {32: "gru", 64: "gru_long"}.get(recurrence, "gru")
             command = [
                 sys.executable,
                 "sf_train_corridor.py",
-                "--memory=gru",
+                f"--method={method}",
                 f"--experiment={experiment}",
                 f"--train_dir={args.train_dir}",
                 f"--seed={seed}",

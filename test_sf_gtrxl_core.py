@@ -39,7 +39,7 @@ except ModuleNotFoundError:
         }
     )
 
-from sf_transformer_core import GTrXLMemoryCore, GRUAttentionMemoryCore
+from sf_temporal_cores import GTrXLMemoryCore, GRUAttentionMemoryCore
 
 
 def make_cfg():

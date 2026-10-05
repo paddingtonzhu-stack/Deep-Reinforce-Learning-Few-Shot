@@ -1,5 +1,19 @@
 # ViZDoom pretrained agents
 
+## Current Sample Factory experiment map
+
+The active Deadly Corridor research now has canonical method names for
+CNN+APPO, GRU+APPO, long-context GRU+APPO, GRU+optional-attention+APPO,
+Transformer+APPO, GTrXL+APPO, and the evaluation-only Hugging Face GRU
+reference. See [`SAMPLE_FACTORY_METHODS.md`](SAMPLE_FACTORY_METHODS.md) for the
+architecture table, current results, and exact commands. New training commands
+should use `sf_train_corridor.py --method=...`; the legacy `--memory` form is
+kept for compatibility.
+
+```bash
+python sf_train_corridor.py --list-methods
+```
+
 ## Deadly Corridor — recommended demo
 
 This project now includes the pretrained Sample Factory APPO Deadly Corridor
