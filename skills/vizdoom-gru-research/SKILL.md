@@ -1,9 +1,9 @@
 ---
 name: vizdoom-gru-research
-description: Run, evaluate, and interpret controlled Sample Factory GRU research in this ViZDoom Deadly Corridor project when the goal is to outperform the upstream Hugging Face GRU with a reproducible method rather than a lucky checkpoint.
+description: Run, evaluate, and interpret controlled Sample Factory agent research in this ViZDoom Deadly Corridor project when the goal is to outperform the upstream Hugging Face checkpoint with a reproducible method rather than a lucky checkpoint; GRU is the current candidate, not a required final architecture.
 ---
 
-# ViZDoom GRU research
+# ViZDoom agent research
 
 Use the repository harness as the source of execution behavior; do not recreate
 training loops inside the skill. Read `SAMPLE_FACTORY_METHODS.md` before
@@ -11,7 +11,8 @@ changing architectures or interpreting old artifacts.
 
 ## Research invariant
 
-A method improvement must reproduce across training seeds. Never attribute a
+A method improvement may use any justified architecture or training procedure,
+but it must reproduce across training seeds. Never attribute a
 gain to an architecture based only on its best checkpoint. Compare matched
 training budgets and identical unseen evaluation seeds, and report mean plus
 worst-seed completion. Treat the upstream Hugging Face result (84.4% on seeds
@@ -23,7 +24,9 @@ worst-seed completion. Treat the upstream Hugging Face result (84.4% on seeds
    Use `python sf_research_harness.py status ...` locally or through an already
    authorized SSH session. Do not terminate unrelated processes.
 2. Screen one controlled change at a smaller budget. For the current study this
-   is GRU recurrence 32 versus 64, seeds 0-2, 2M steps each.
+   is GRU recurrence 32 versus 64, seeds 0-2, 2M steps each. This candidate was
+   selected because the vanilla Transformer and GTrXL experiments failed; it
+   does not restrict future hypotheses to GRUs.
 3. Evaluate every seed with the same checkpoint rule, episode count, and unseen
    seed range using `sf_research_harness.py evaluate`.
 4. Run `sf_research_harness.py summarize`. Advance only when the candidate wins
@@ -40,6 +43,10 @@ Use fresh artifact/result directories for new protocols. Never reuse evaluation
 seeds for training or tune directly on the final confirmation range. Preserve
 the 88.4% locally trained checkpoint and upstream artifacts as read-only
 references.
+
+If a candidate fails its gate, choose the next single hypothesis from observed
+failure evidence. Do not keep tuning one architecture merely because it is
+already implemented, and do not stack multiple changes in one comparison.
 
 For exact stage commands, acceptance rules, and current fixed paths, read
 [`references/protocol.md`](references/protocol.md).

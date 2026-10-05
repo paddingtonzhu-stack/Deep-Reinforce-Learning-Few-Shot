@@ -1,4 +1,9 @@
-# Controlled GRU protocol
+# Controlled agent-improvement protocol
+
+The research objective is architecture-agnostic: outperform the upstream
+Hugging Face Sample Factory checkpoint reliably. GRU-64 is the current
+controlled candidate because earlier vanilla Transformer and GTrXL variants
+failed to learn; it is not the definition of success.
 
 ## Fixed references
 
@@ -67,11 +72,13 @@ episodes per policy. Then compare the selected candidate and upstream checkpoint
 on a second disjoint 500-seed range. Report paired discordant outcomes rather
 than only aggregate percentages.
 
-If GRU-64 fails the screen, do not rationalize or extend it. Record the negative
-result and choose one new hypothesis. Suitable next hypotheses should target a
-known GRU failure mechanism while preserving the controlled baseline, such as
-burn-in for recurrent minibatches or completion-aligned training. Do not stack
-multiple changes in one experiment.
+If GRU-64 fails confirmation, do not rationalize or extend it. Record the
+negative result and choose one new hypothesis from failure evidence. The next
+hypothesis may change architecture or training procedure while preserving the
+matched environment, budget, and evaluation protocol. Suitable examples include
+burn-in for recurrent minibatches, completion-aligned training, or another
+memory mechanism designed around an observed failure. Do not stack multiple
+changes in one experiment.
 
 ## Artifact safety
 

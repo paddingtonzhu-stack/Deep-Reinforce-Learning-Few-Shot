@@ -106,6 +106,11 @@ does not establish a reliable method improvement.
 current controlled GRU study. It wraps the existing trainers and evaluator; it
 does not duplicate model implementations.
 
+The overall research objective is not restricted to GRU. A candidate may use
+another architecture or training method if it is introduced as one controlled
+hypothesis and evaluated through the same multi-seed stage gates. GRU-64 is the
+current candidate because the earlier Transformer and GTrXL candidates failed.
+
 ```bash
 python sf_research_harness.py status \
   --train-dir=artifacts/sample_factory_gru_recurrence_2m
