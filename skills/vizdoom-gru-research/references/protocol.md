@@ -48,6 +48,10 @@ python sf_research_harness.py evaluate \
 python sf_research_harness.py summarize \
   --results-root=results/sample_factory_gru_recurrence_2m \
   --output=results/sample_factory_gru_recurrence_2m/harness_report.json
+
+python sf_research_harness.py catalog \
+  --artifacts-root=artifacts --results-root=results \
+  --output=results/research_catalog.json
 ```
 
 ## Stage gates

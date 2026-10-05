@@ -7,6 +7,7 @@ versioned JSON reports using matched seeds.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import statistics
 import subprocess
@@ -194,6 +195,141 @@ def status(args):
             )
 
 
+def relative_or_absolute(path, root):
+    try:
+        return str(path.resolve().relative_to(root.resolve()))
+    except ValueError:
+        return str(path.resolve())
+
+
+def catalog(args):
+    """Index all immutable experiment evidence without copying large checkpoints."""
+    workspace = Path.cwd()
+    evaluations = []
+    for report_path in args.results_root.rglob("report.json"):
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            print(f"Skipping unreadable report {report_path}: {error}")
+            continue
+        metrics = report.get("metrics", {})
+        episodes_path = report_path.with_name("episodes.csv")
+        config_path = report_path.with_name("config.json")
+        evaluations.append(
+            {
+                "experiment": report.get("experiment"),
+                "policy_index": report.get("policy_index"),
+                "checkpoint_kind": report.get("checkpoint_kind"),
+                "checkpoint": report.get("checkpoint"),
+                "episodes": report.get("episodes"),
+                "seed_start": report.get("seed_start"),
+                "completion_rate": metrics.get("completion_rate"),
+                "death_rate": metrics.get("death_rate"),
+                "timeout_rate": metrics.get("timeout_rate"),
+                "mean_reward": metrics.get("mean_reward"),
+                "architecture": report.get("architecture"),
+                "report_path": relative_or_absolute(report_path, workspace),
+                "episodes_path": relative_or_absolute(episodes_path, workspace)
+                if episodes_path.exists()
+                else None,
+                "config_path": relative_or_absolute(config_path, workspace)
+                if config_path.exists()
+                else None,
+                "modified_ns": report_path.stat().st_mtime_ns,
+            }
+        )
+
+    training_configs = []
+    for config_path in args.artifacts_root.rglob("config.json"):
+        try:
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        training_configs.append(
+            {
+                "experiment": config.get("experiment"),
+                "memory": config.get("memory"),
+                "seed": config.get("seed"),
+                "recurrence": config.get("recurrence"),
+                "train_for_env_steps": config.get("train_for_env_steps"),
+                "num_policies": config.get("num_policies"),
+                "path": relative_or_absolute(config_path, workspace),
+            }
+        )
+
+    checkpoints = []
+    for path in args.artifacts_root.rglob("*.pth"):
+        stat = path.stat()
+        checkpoints.append(
+            {
+                "path": relative_or_absolute(path, workspace),
+                "name": path.name,
+                "policy_dir": path.parent.name,
+                "size_bytes": stat.st_size,
+                "modified_ns": stat.st_mtime_ns,
+            }
+        )
+
+    logs = []
+    for root in (args.artifacts_root, args.results_root):
+        for pattern in ("*.log",):
+            for path in root.rglob(pattern):
+                stat = path.stat()
+                logs.append(
+                    {
+                        "path": relative_or_absolute(path, workspace),
+                        "size_bytes": stat.st_size,
+                        "modified_ns": stat.st_mtime_ns,
+                    }
+                )
+
+    payload = {
+        "schema_version": 1,
+        "workspace": str(workspace.resolve()),
+        "artifacts_root": relative_or_absolute(args.artifacts_root, workspace),
+        "results_root": relative_or_absolute(args.results_root, workspace),
+        "counts": {
+            "evaluations": len(evaluations),
+            "training_configs": len(training_configs),
+            "checkpoints": len(checkpoints),
+            "logs": len(logs),
+        },
+        "evaluations": sorted(
+            evaluations,
+            key=lambda row: (str(row["experiment"]), int(row["modified_ns"])),
+        ),
+        "training_configs": sorted(training_configs, key=lambda row: str(row["path"])),
+        "checkpoints": sorted(checkpoints, key=lambda row: str(row["path"])),
+        "logs": sorted(logs, key=lambda row: str(row["path"])),
+    }
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    csv_path = args.output.with_suffix(".csv")
+    fields = [
+        "experiment",
+        "policy_index",
+        "checkpoint_kind",
+        "episodes",
+        "seed_start",
+        "completion_rate",
+        "death_rate",
+        "timeout_rate",
+        "mean_reward",
+        "report_path",
+        "episodes_path",
+    ]
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(payload["evaluations"])
+    print(
+        f"Cataloged {len(evaluations)} evaluations, {len(training_configs)} training configs, "
+        f"{len(checkpoints)} checkpoints, and {len(logs)} logs"
+    )
+    print(f"Saved {args.output} and {csv_path}")
+
+
 def add_shared(parser):
     parser.add_argument("--seeds", type=csv_ints, default=SEEDS)
     parser.add_argument("--recurrences", type=csv_ints, default=RECURRENCES)
@@ -232,6 +368,16 @@ def main():
     status_parser.add_argument("--train-dir", type=Path, required=True)
     status_parser.add_argument("--lines", type=int, default=20)
     status_parser.set_defaults(func=status)
+
+    catalog_parser = subparsers.add_parser("catalog", help="index all experiment evidence")
+    catalog_parser.add_argument("--artifacts-root", type=Path, default=Path("artifacts"))
+    catalog_parser.add_argument("--results-root", type=Path, default=Path("results"))
+    catalog_parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("results/research_catalog.json"),
+    )
+    catalog_parser.set_defaults(func=catalog)
 
     args = parser.parse_args()
     args.func(args)

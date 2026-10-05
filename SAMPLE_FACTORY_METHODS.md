@@ -118,7 +118,13 @@ python sf_research_harness.py evaluate \
 python sf_research_harness.py summarize \
   --results-root=results/sample_factory_gru_recurrence_2m \
   --output=results/sample_factory_gru_recurrence_2m/harness_report.json
+
+python sf_research_harness.py catalog \
+  --artifacts-root=artifacts --results-root=results \
+  --output=results/research_catalog.json
 ```
 
 The versioned project skill under `skills/vizdoom-gru-research/` teaches Codex
 to use this harness and enforce the same stage gates in later sessions.
+The catalog indexes every saved evaluation, training configuration, checkpoint,
+and log while leaving the underlying artifacts untouched.

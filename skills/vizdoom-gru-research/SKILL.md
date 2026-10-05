@@ -32,6 +32,9 @@ worst-seed completion. Treat the upstream Hugging Face result (84.4% on seeds
 5. Confirm an advancing method at the full budget, then evaluate on a second
    disjoint seed range. A final claim must include paired failure counts against
    the upstream checkpoint.
+6. After every training or evaluation stage, run
+   `python sf_research_harness.py catalog`. Preserve successes and failures;
+   the catalog is evidence for choosing the next hypothesis.
 
 Use fresh artifact/result directories for new protocols. Never reuse evaluation
 seeds for training or tune directly on the final confirmation range. Preserve
