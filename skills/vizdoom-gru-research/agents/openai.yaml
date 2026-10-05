@@ -1,0 +1,4 @@
+interface:
+  display_name: "ViZDoom GRU Research"
+  short_description: "Run rigorous GRU experiments in ViZDoom"
+  default_prompt: "Use $vizdoom-gru-research to run and assess the next controlled GRU experiment."

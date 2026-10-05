@@ -99,3 +99,26 @@ Architecture claims require multiple training seeds and identical unseen
 evaluation seeds. Report mean completion, worst-seed completion, death rate,
 and paired failure counts. A single best checkpoint is useful operationally but
 does not establish a reliable method improvement.
+
+## Reproducible research harness
+
+`sf_research_harness.py` is the canonical orchestration entry point for the
+current controlled GRU study. It wraps the existing trainers and evaluator; it
+does not duplicate model implementations.
+
+```bash
+python sf_research_harness.py status \
+  --train-dir=artifacts/sample_factory_gru_recurrence_2m
+
+python sf_research_harness.py evaluate \
+  --train-dir=artifacts/sample_factory_gru_recurrence_2m \
+  --results-root=results/sample_factory_gru_recurrence_2m \
+  --episodes=100 --seed-start=30000
+
+python sf_research_harness.py summarize \
+  --results-root=results/sample_factory_gru_recurrence_2m \
+  --output=results/sample_factory_gru_recurrence_2m/harness_report.json
+```
+
+The versioned project skill under `skills/vizdoom-gru-research/` teaches Codex
+to use this harness and enforce the same stage gates in later sessions.

@@ -1,0 +1,241 @@
+"""Reproducible train/evaluate/report harness for GRU-method research.
+
+The harness deliberately keeps orchestration separate from model code. It
+launches the existing training/evaluation entry points and summarizes their
+versioned JSON reports using matched seeds.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import statistics
+import subprocess
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+
+RECURRENCES = (32, 64)
+SEEDS = (0, 1, 2)
+
+
+def csv_ints(value):
+    try:
+        parsed = tuple(int(item.strip()) for item in value.split(",") if item.strip())
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("expected comma-separated integers") from error
+    if not parsed:
+        raise argparse.ArgumentTypeError("expected at least one integer")
+    return parsed
+
+
+def run(command):
+    print("+", " ".join(map(str, command)), flush=True)
+    subprocess.run(command, check=True)
+
+
+def experiment_name(recurrence, seed):
+    return f"sf_corridor_gru_r{recurrence}_seed_{seed}"
+
+
+def train(args):
+    run(
+        [
+            sys.executable,
+            "run_sf_gru_recurrence_study.py",
+            f"--seeds={','.join(map(str, args.seeds))}",
+            f"--recurrences={','.join(map(str, args.recurrences))}",
+            f"--gpu={args.gpu}",
+            f"--steps={args.steps}",
+            f"--train-dir={args.train_dir}",
+        ]
+    )
+
+
+def evaluate(args):
+    for recurrence in args.recurrences:
+        for seed in args.seeds:
+            experiment = experiment_name(recurrence, seed)
+            result_root = args.results_root / f"r{recurrence}_seed_{seed}_{args.checkpoint}"
+            run(
+                [
+                    sys.executable,
+                    "sf_evaluate_corridor.py",
+                    f"--experiment={experiment}",
+                    f"--train-dir={args.train_dir}",
+                    "--policy-index=0",
+                    f"--checkpoint={args.checkpoint}",
+                    f"--episodes={args.episodes}",
+                    f"--seed-start={args.seed_start}",
+                    f"--device={args.device}",
+                    f"--results-root={result_root}",
+                ]
+            )
+
+
+def latest_reports(results_root):
+    latest = {}
+    for path in results_root.rglob("report.json"):
+        report = json.loads(path.read_text(encoding="utf-8"))
+        experiment = report.get("experiment")
+        if not experiment or "sf_corridor_gru_r" not in experiment:
+            continue
+        previous = latest.get(experiment)
+        if previous is None or path.stat().st_mtime > previous[0].stat().st_mtime:
+            latest[experiment] = (path, report)
+    return latest
+
+
+def summarize(args):
+    reports = latest_reports(args.results_root)
+    missing = [
+        experiment_name(recurrence, seed)
+        for recurrence in args.recurrences
+        for seed in args.seeds
+        if experiment_name(recurrence, seed) not in reports
+    ]
+    if missing:
+        raise SystemExit("Missing evaluation reports: " + ", ".join(missing))
+
+    grouped = defaultdict(dict)
+    rows = []
+    for recurrence in args.recurrences:
+        for seed in args.seeds:
+            experiment = experiment_name(recurrence, seed)
+            path, report = reports[experiment]
+            metrics = report["metrics"]
+            rate = float(metrics["completion_rate"])
+            grouped[recurrence][seed] = rate
+            row = {
+                "recurrence": recurrence,
+                "seed": seed,
+                "completion_rate": rate,
+                "death_rate": float(metrics["death_rate"]),
+                "episodes": int(report["episodes"]),
+                "report": str(path),
+            }
+            rows.append(row)
+            print(
+                f"GRU-{recurrence} seed {seed}: completion={100 * rate:.1f}% "
+                f"death={100 * row['death_rate']:.1f}% episodes={row['episodes']}"
+            )
+
+    aggregates = {}
+    for recurrence, values_by_seed in grouped.items():
+        values = list(values_by_seed.values())
+        aggregates[recurrence] = {
+            "mean_completion_rate": statistics.fmean(values),
+            "worst_seed_completion_rate": min(values),
+            "best_seed_completion_rate": max(values),
+        }
+        aggregate = aggregates[recurrence]
+        print(
+            f"GRU-{recurrence} aggregate: mean={100 * aggregate['mean_completion_rate']:.1f}% "
+            f"worst={100 * aggregate['worst_seed_completion_rate']:.1f}% "
+            f"best={100 * aggregate['best_seed_completion_rate']:.1f}%"
+        )
+
+    decision = None
+    if 32 in grouped and 64 in grouped:
+        common_seeds = sorted(set(grouped[32]) & set(grouped[64]))
+        wins = sum(grouped[64][seed] > grouped[32][seed] for seed in common_seeds)
+        ties = sum(grouped[64][seed] == grouped[32][seed] for seed in common_seeds)
+        long_mean = aggregates[64]["mean_completion_rate"]
+        base_mean = aggregates[32]["mean_completion_rate"]
+        long_worst = aggregates[64]["worst_seed_completion_rate"]
+        base_worst = aggregates[32]["worst_seed_completion_rate"]
+        advance = wins >= 2 and long_mean > base_mean and long_worst >= base_worst
+        decision = {
+            "gru64_seed_wins": wins,
+            "ties": ties,
+            "mean_delta": long_mean - base_mean,
+            "worst_seed_delta": long_worst - base_worst,
+            "advance_gru64_to_full_budget": advance,
+        }
+        print(
+            f"GRU-64 vs GRU-32: seed_wins={wins}/{len(common_seeds)}, ties={ties}, "
+            f"mean_delta={100 * decision['mean_delta']:+.1f} points, "
+            f"worst_delta={100 * decision['worst_seed_delta']:+.1f} points"
+        )
+        print("DECISION:", "ADVANCE GRU-64" if advance else "DO NOT ADVANCE GRU-64")
+
+    output = {
+        "protocol": {
+            "recurrences": list(args.recurrences),
+            "training_seeds": list(args.seeds),
+            "matched_evaluation_required": True,
+            "upstream_target_completion_rate": args.upstream_target,
+        },
+        "runs": rows,
+        "aggregates": {str(key): value for key, value in aggregates.items()},
+        "screening_decision": decision,
+    }
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(output, indent=2), encoding="utf-8")
+    print(f"Saved harness report to {args.output}")
+
+
+def status(args):
+    launcher = args.train_dir / "gru_recurrence_runs" / "launcher.log"
+    if launcher.exists():
+        lines = launcher.read_text(encoding="utf-8", errors="replace").splitlines()
+        print("\n".join(lines[-args.lines :]))
+    else:
+        print(f"No launcher log at {launcher}")
+    for recurrence in args.recurrences:
+        for seed in args.seeds:
+            root = args.train_dir / experiment_name(recurrence, seed) / "checkpoint_p0"
+            latest = sorted(root.glob("checkpoint_*.pth"))
+            best = sorted(root.glob("best_*.pth"))
+            print(
+                f"GRU-{recurrence} seed {seed}: "
+                f"latest={latest[-1].name if latest else '-'} "
+                f"best={best[-1].name if best else '-'}"
+            )
+
+
+def add_shared(parser):
+    parser.add_argument("--seeds", type=csv_ints, default=SEEDS)
+    parser.add_argument("--recurrences", type=csv_ints, default=RECURRENCES)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    train_parser = subparsers.add_parser("train", help="launch controlled GRU recurrence training")
+    add_shared(train_parser)
+    train_parser.add_argument("--gpu", type=int, default=0)
+    train_parser.add_argument("--steps", type=int, default=2_000_000)
+    train_parser.add_argument("--train-dir", type=Path, required=True)
+    train_parser.set_defaults(func=train)
+
+    eval_parser = subparsers.add_parser("evaluate", help="evaluate every trained recurrence/seed")
+    add_shared(eval_parser)
+    eval_parser.add_argument("--train-dir", type=Path, required=True)
+    eval_parser.add_argument("--results-root", type=Path, required=True)
+    eval_parser.add_argument("--episodes", type=int, default=100)
+    eval_parser.add_argument("--seed-start", type=int, default=30_000)
+    eval_parser.add_argument("--checkpoint", choices=("best", "latest"), default="best")
+    eval_parser.add_argument("--device", choices=("cpu", "gpu"), default="gpu")
+    eval_parser.set_defaults(func=evaluate)
+
+    summary_parser = subparsers.add_parser("summarize", help="report reliability and screening decision")
+    add_shared(summary_parser)
+    summary_parser.add_argument("--results-root", type=Path, required=True)
+    summary_parser.add_argument("--output", type=Path, required=True)
+    summary_parser.add_argument("--upstream-target", type=float, default=0.844)
+    summary_parser.set_defaults(func=summarize)
+
+    status_parser = subparsers.add_parser("status", help="show launcher tail and checkpoints")
+    add_shared(status_parser)
+    status_parser.add_argument("--train-dir", type=Path, required=True)
+    status_parser.add_argument("--lines", type=int, default=20)
+    status_parser.set_defaults(func=status)
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
