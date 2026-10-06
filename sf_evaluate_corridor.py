@@ -100,6 +100,39 @@ def build_env(cfg, seed: int):
     return env, obs
 
 
+def majority_vote_actions(member_actions, tie_break_index=-1):
+    """Vote independently for each discrete action branch.
+
+    Deadly Corridor uses a tuple of discrete actions. With three members a
+    branch can still tie when all policies choose a different value, so use a
+    fixed member as the deterministic tie breaker.
+    """
+    if not member_actions:
+        raise ValueError("At least one member action is required")
+    stacked = torch.stack(member_actions, dim=0)
+    if not -len(member_actions) <= tie_break_index < len(member_actions):
+        raise IndexError("Ensemble tie-break index is outside the member list")
+    modes, _ = torch.mode(stacked, dim=0)
+    mode_counts = (stacked == modes.unsqueeze(0)).sum(dim=0)
+    tie_break_actions = stacked[tie_break_index]
+    return torch.where(mode_counts > 1, modes, tie_break_actions)
+
+
+def load_policy_cfg(args, experiment):
+    sf_argv = [
+        "--algo=APPO",
+        "--env=doom_deadly_corridor",
+        f"--experiment={experiment}",
+        f"--train_dir={args.train_dir}",
+        f"--device={args.device}",
+        f"--policy_index={args.policy_index}",
+        f"--load_checkpoint_kind={args.checkpoint}",
+        "--no_render",
+        "--eval_deterministic=True",
+    ]
+    return load_from_checkpoint(parse_vizdoom_cfg(argv=sf_argv, evaluation=True))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment", default="deadly-corridor-upstream")
@@ -111,6 +144,18 @@ def main():
     parser.add_argument("--device", choices=("cpu", "gpu"), default="gpu")
     parser.add_argument("--results-root", type=Path, default=Path("results/sample_factory_corridor"))
     parser.add_argument("--disable-gru-attention", action="store_true")
+    parser.add_argument(
+        "--ensemble-experiment",
+        action="append",
+        default=[],
+        help="Repeat for each same-architecture checkpoint in a majority-vote ensemble",
+    )
+    parser.add_argument(
+        "--ensemble-tie-break-index",
+        type=int,
+        default=-1,
+        help="Member used when all policies choose a different action (default: last)",
+    )
     args = parser.parse_args()
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ")
@@ -119,33 +164,38 @@ def main():
     logger = make_logger(output_dir)
 
     register_components()
-    sf_argv = [
-        "--algo=APPO",
-        "--env=doom_deadly_corridor",
-        f"--experiment={args.experiment}",
-        f"--train_dir={args.train_dir}",
-        f"--device={args.device}",
-        f"--policy_index={args.policy_index}",
-        f"--load_checkpoint_kind={args.checkpoint}",
-        "--no_render",
-        "--eval_deterministic=True",
-    ]
-    cfg = load_from_checkpoint(parse_vizdoom_cfg(argv=sf_argv, evaluation=True))
+    experiments = args.ensemble_experiment or [args.experiment]
+    cfgs = [load_policy_cfg(args, experiment) for experiment in experiments]
+    cfg = cfgs[0]
     device = torch.device("cpu" if args.device == "cpu" else "cuda")
 
     # Build one environment to obtain the exact spaces used by the saved policy.
     probe_env, _ = build_env(cfg, args.seed_start)
     env_info = extract_env_info(probe_env, cfg)
-    actor_critic = create_actor_critic(cfg, probe_env.observation_space, probe_env.action_space)
-    actor_critic.eval()
-    actor_critic.model_to_device(device)
-    model_path = checkpoint_path(cfg, args.policy_index, args.checkpoint)
-    logger.info("Loading %s policy %d from %s", args.checkpoint, args.policy_index, model_path)
-    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
-    actor_critic.load_state_dict(checkpoint["model"])
+    actor_critics = []
+    model_paths = []
+    for experiment, member_cfg in zip(experiments, cfgs):
+        actor_critic = create_actor_critic(
+            member_cfg, probe_env.observation_space, probe_env.action_space
+        )
+        actor_critic.eval()
+        actor_critic.model_to_device(device)
+        model_path = checkpoint_path(member_cfg, args.policy_index, args.checkpoint)
+        logger.info(
+            "Loading %s policy %d for %s from %s",
+            args.checkpoint,
+            args.policy_index,
+            experiment,
+            model_path,
+        )
+        checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+        actor_critic.load_state_dict(checkpoint["model"])
+        actor_critics.append(actor_critic)
+        model_paths.append(model_path)
     if args.disable_gru_attention:
         cores = [
             module
+            for actor_critic in actor_critics
             for module in actor_critic.modules()
             if isinstance(module, GRUAttentionMemoryCore)
         ]
@@ -165,20 +215,34 @@ def main():
         # A fresh process-level Doom instance is required for each seed: changing
         # VizDoom's seed after initialization does not affect the next episode.
         env, obs = build_env(cfg, test_seed)
-        rnn_states = torch.zeros((env.num_agents, get_rnn_size(cfg)), dtype=torch.float32, device=device)
+        rnn_states = [
+            torch.zeros(
+                (env.num_agents, get_rnn_size(member_cfg)),
+                dtype=torch.float32,
+                device=device,
+            )
+            for member_cfg in cfgs
+        ]
         reward_sum = 0.0
         decisions = 0
         terminal_info = {}
         with torch.no_grad():
             while True:
-                normalized_obs = prepare_and_normalize_obs(actor_critic, obs)
-                outputs = actor_critic(normalized_obs, rnn_states)
-                actions = argmax_actions(actor_critic.action_distribution())
+                member_actions = []
+                new_rnn_states = []
+                for actor_critic, member_rnn_states in zip(actor_critics, rnn_states):
+                    normalized_obs = prepare_and_normalize_obs(actor_critic, obs)
+                    outputs = actor_critic(normalized_obs, member_rnn_states)
+                    member_actions.append(argmax_actions(actor_critic.action_distribution()))
+                    new_rnn_states.append(outputs["new_rnn_states"])
+                actions = majority_vote_actions(
+                    member_actions, tie_break_index=args.ensemble_tie_break_index
+                )
                 if actions.ndim == 1:
                     actions = unsqueeze_tensor(actions, dim=-1)
                 actions = preprocess_actions(env_info, actions)
                 obs, rewards, terminated, truncated, infos = env.step(actions)
-                rnn_states = outputs["new_rnn_states"]
+                rnn_states = new_rnn_states
                 reward_sum += float(rewards[0].item())
                 decisions += 1
                 if bool(make_dones(terminated, truncated)[0].item()):
@@ -212,8 +276,13 @@ def main():
         writer.writerows(rows)
 
     report = {
-        "experiment": args.experiment,
-        "checkpoint": str(model_path),
+        "experiment": args.experiment if len(experiments) == 1 else "majority_vote_ensemble",
+        "checkpoint": str(model_paths[0]) if len(model_paths) == 1 else None,
+        "ensemble": {
+            "members": experiments,
+            "checkpoints": [str(path) for path in model_paths],
+            "tie_break_index": args.ensemble_tie_break_index,
+        } if len(experiments) > 1 else None,
         "checkpoint_kind": args.checkpoint,
         "policy_index": args.policy_index,
         "device": args.device,

@@ -11,6 +11,7 @@ discussion therefore means “+ Sample Factory APPO” in the code.
 | `cnn` | CNN + APPO | No-memory control | 8% aggregate completion; one policy reached 48% |
 | `gru` | CNN + 512-unit GRU + APPO, recurrence 32 | Standard trainable GRU | Architecture used by the upstream reference |
 | `gru_long` | Same GRU + APPO, recurrence 64 | Current controlled improvement experiment | Pending GRU-32 vs GRU-64 study |
+| GRU-64 ensemble | Per-action majority vote across three independently trained GRU-64 policies | Initialization-robust inference candidate | Motivated by low pairwise death-set overlap (Jaccard 0.35–0.36) after GRU-64 failed the upstream gate |
 | `gru_attention` | CNN + GRU + gated optional attention + APPO | Our experimental architecture | 88.4% enabled vs 88.0% disabled on 500 matched episodes; no demonstrated attention benefit |
 | `transformer` | CNN + causal finite-memory Transformer + APPO | Experimental architecture | Failed: 0.3% aggregate completion |
 | `gtrxl` | CNN + gated Transformer-XL-style core + APPO | Experimental architecture | Failed to learn beyond approximately reward 5 |
@@ -133,3 +134,29 @@ The versioned project skill under `skills/vizdoom-gru-research/` teaches Codex
 to use this harness and enforce the same stage gates in later sessions.
 The catalog indexes every saved evaluation, training configuration, checkpoint,
 and log while leaving the underlying artifacts untouched.
+
+## Multi-seed GRU ensemble screen
+
+The 10M-step GRU-64 confirmation improved over GRU-32 on all three seeds, but
+its mean completion was 74.0% versus 87.4% for upstream on matched seeds
+40000–40499. The three GRU-64 policies nevertheless had substantially
+different death sets. The next isolated hypothesis is therefore an inference
+ensemble, not another training change. Each policy keeps its own recurrent
+state and deterministic actions are combined branch-by-branch by majority
+vote. Three-way ties use a fixed member selected before evaluation.
+
+Repeat `--ensemble-experiment` for all members:
+
+```bash
+python sf_evaluate_corridor.py \
+  --train-dir=artifacts/sample_factory_gru_recurrence_10m_confirm \
+  --ensemble-experiment=sf_corridor_gru_r64_seed_0 \
+  --ensemble-experiment=sf_corridor_gru_r64_seed_1 \
+  --ensemble-experiment=sf_corridor_gru_r64_seed_2 \
+  --ensemble-tie-break-index=2 --checkpoint=best \
+  --episodes=100 --seed-start=50000 --device=gpu \
+  --results-root=results/sample_factory_gru64_ensemble_screen
+```
+
+The `50000` range is a fresh development screen. Do not use the already
+inspected `40000` range to claim ensemble performance.
