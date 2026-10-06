@@ -13,6 +13,7 @@ discussion therefore means “+ Sample Factory APPO” in the code.
 | `gru_long` | Same GRU + APPO, recurrence 64 | Current controlled improvement experiment | Pending GRU-32 vs GRU-64 study |
 | `gru_residual_ln` | CNN + residual LayerNorm GRU + APPO, recurrence 64 | Cross-seed stability candidate | Next controlled training hypothesis after GRU-64 and action-vote ensemble failed upstream gates |
 | `gru_completion_bonus` | CNN + GRU-64 + APPO with +10 successful-terminal reward | Completion-aligned training candidate | Next isolated hypothesis after residual LayerNorm GRU failed 0/3 seeds |
+| `gru_skill_curriculum` | CNN + GRU-64 + APPO, pretraining at Doom skill 1 | Exploration-stability curriculum candidate | Next isolated hypothesis after low-LR continuation failed its multi-seed gate |
 | GRU-64 late-checkpoint average | Parameter average of the two late snapshots from each GRU-64 run | Optimization-noise robustness candidate | Next isolated hypothesis after completion bonus reduced matched 2M mean completion from 22% to 13% |
 | GRU-64 ensemble | Per-action majority vote across three independently trained GRU-64 policies | Initialization-robust inference candidate | Motivated by low pairwise death-set overlap (Jaccard 0.35–0.36) after GRU-64 failed the upstream gate |
 | `gru_attention` | CNN + GRU + gated optional attention + APPO | Our experimental architecture | 88.4% enabled vs 88.0% disabled on 500 matched episodes; no demonstrated attention benefit |
@@ -79,6 +80,30 @@ python run_sf_gru_lr_finetune_screen.py \
 The stage advances only with at least two paired seed wins, improved mean,
 non-degraded worst-seed completion, and a mean within five completion points
 of upstream.
+
+The low-learning-rate continuation did not advance on seeds 90000--90099. It
+scored 65%, 70%, and 73% versus 62%, 73%, and 73% for the exact 10M parents:
+one win, one loss, one tie, unchanged mean completion (69.3%), and 82% for
+upstream. This rejects simple late-stage learning-rate reduction.
+
+The next screen isolates a difficulty curriculum: 1M steps at Doom skill 1,
+then the same checkpoint continues to 2M total steps in the unchanged standard
+skill-5 environment. Architecture, optimizer, total budget, and evaluation are
+matched to the existing 2M GRU-64 controls:
+
+```bash
+python run_sf_gru_skill_curriculum.py \
+  --seeds=0,1,2 --gpu=0 --easy-steps=1000000 --total-steps=2000000 \
+  --train-dir=artifacts/sample_factory_gru_skill_curriculum_2m
+```
+
+Evaluate against the budget-matched 2M GRU-64 parents and upstream on fresh
+seeds `100000--100099`:
+
+```bash
+python run_sf_gru_skill_curriculum_screen.py \
+  --episodes=100 --seed-start=100000 --device=gpu
+```
 
 List these definitions from the code:
 

@@ -58,6 +58,14 @@ METHODS = {
         "Standard GRU-64 trained with a +10 terminal completion bonus.",
         64,
     ),
+    "gru_skill_curriculum": Method(
+        "gru_skill_curriculum",
+        "CNN + GRU-64 + skill curriculum APPO",
+        "gru",
+        True,
+        "GRU-64 pretraining at Doom skill 1 before standard skill-5 training.",
+        64,
+    ),
     "gru_attention": Method(
         "gru_attention",
         "CNN + GRU + optional attention + APPO",

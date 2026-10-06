@@ -31,7 +31,14 @@ class PrepareFinetuneTests(unittest.TestCase):
             )
             destination_root = root / "destinations"
             destination = destination_root / "new"
-            output = prepare_finetune(source, destination, destination_root, 3e-5, 12_000_000)
+            output = prepare_finetune(
+                source,
+                destination,
+                destination_root,
+                3e-5,
+                12_000_000,
+                config_overrides={"env": "new_env"},
+            )
 
             checkpoint = torch.load(output, map_location="cpu", weights_only=False)
             torch.load(output, map_location="cpu", weights_only=True)
@@ -43,6 +50,7 @@ class PrepareFinetuneTests(unittest.TestCase):
             self.assertIsInstance(checkpoint["best_performance"], float)
             self.assertEqual(checkpoint["optimizer"]["param_groups"][0]["lr"], 3e-5)
             self.assertEqual(config["experiment"], "new")
+            self.assertEqual(config["env"], "new_env")
             self.assertEqual(config["train_for_env_steps"], 12_000_000)
             self.assertEqual(provenance["source_env_steps"], 10_000_000)
 

@@ -32,6 +32,7 @@ def prepare_finetune(
     destination_train_dir: Path,
     learning_rate: float,
     target_env_steps: int,
+    config_overrides: dict | None = None,
 ) -> Path:
     if destination_experiment.exists():
         raise FileExistsError(f"refusing to overwrite {destination_experiment}")
@@ -59,6 +60,8 @@ def prepare_finetune(
     config["train_dir"] = str(destination_train_dir)
     config["learning_rate"] = learning_rate
     config["train_for_env_steps"] = target_env_steps
+    if config_overrides:
+        config.update(config_overrides)
 
     checkpoint_dir = destination_experiment / "checkpoint_p0"
     checkpoint_dir.mkdir(parents=True)
@@ -76,6 +79,7 @@ def prepare_finetune(
         "source_env_steps": checkpoint["env_steps"],
         "target_env_steps": target_env_steps,
         "fine_tune_learning_rate": learning_rate,
+        "config_overrides": config_overrides or {},
     }
     (destination_experiment / "finetune_provenance.json").write_text(
         json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8"

@@ -14,6 +14,7 @@ from sf_examples.vizdoom.train_vizdoom import register_vizdoom_components
 from sf_corridor_objective import (
     COMPLETION_ENV,
     SHAPED_COMPLETION_ENV,
+    SKILL_CURRICULUM_ENV,
     register_corridor_completion_env,
 )
 from sf_methods import TRAINABLE_METHODS, format_method_catalog, method_for_training, recurrent_options
@@ -90,6 +91,7 @@ def parse_corridor_cfg(argv):
     parser.add_argument("--gru_attention_dim", type=int, default=128)
     parser.add_argument("--gru_attention_gate_init", type=float, default=-2.0)
     parser.add_argument("--completion_bonus", type=float, default=0.0)
+    parser.add_argument("--corridor_skill", type=int, default=5)
     doom_override_defaults(parser)
     return parse_full_cfg(parser, argv)
 
@@ -118,6 +120,7 @@ def main():
     custom.add_argument("--gru-attention-dim", type=int, default=128)
     custom.add_argument("--gru-attention-gate-init", type=float, default=-2.0)
     custom.add_argument("--completion-bonus", type=float, default=0.0)
+    custom.add_argument("--corridor-skill", type=int, default=5)
     custom.add_argument(
         "--completion-objective",
         action="store_true",
@@ -160,6 +163,8 @@ def main():
         argv.append(f"--env={COMPLETION_ENV}")
     elif completion_bonus != 0.0 and not has_option(argv, "env"):
         argv.append(f"--env={SHAPED_COMPLETION_ENV}")
+    elif selected_method and selected_method.name == "gru_skill_curriculum" and not has_option(argv, "env"):
+        argv.append(f"--env={SKILL_CURRICULUM_ENV}")
     for name, value in MATCHED_DEFAULTS.items():
         if not has_option(argv, name):
             argv.append(f"--{name}={value}")
@@ -177,6 +182,7 @@ def main():
         "gru_attention_dim": known.gru_attention_dim,
         "gru_attention_gate_init": known.gru_attention_gate_init,
         "completion_bonus": completion_bonus,
+        "corridor_skill": known.corridor_skill,
     }
     for name, value in custom_cfg.items():
         if not has_option(argv, name):
