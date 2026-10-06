@@ -7,7 +7,23 @@ import hashlib
 import json
 from pathlib import Path
 
+import numpy as np
 import torch
+
+
+def make_weights_only_compatible(value):
+    """Replace NumPy containers/scalars rejected by PyTorch 2.6's safe loader."""
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return torch.from_numpy(value.copy())
+    if isinstance(value, dict):
+        return {key: make_weights_only_compatible(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [make_weights_only_compatible(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(make_weights_only_compatible(item) for item in value)
+    return value
 
 
 def prepare_finetune(
@@ -36,6 +52,7 @@ def prepare_finetune(
         if "initial_lr" in group:
             group["initial_lr"] = learning_rate
     checkpoint["curr_lr"] = learning_rate
+    checkpoint = make_weights_only_compatible(checkpoint)
 
     config = json.loads((source_experiment / "config.json").read_text(encoding="utf-8"))
     config["experiment"] = destination_experiment.name
@@ -50,6 +67,9 @@ def prepare_finetune(
     )
     destination_checkpoint = checkpoint_dir / source_checkpoint.name
     torch.save(checkpoint, destination_checkpoint)
+    # Sample Factory uses torch.load without weights_only=False. Verify the
+    # rewritten file is accepted by PyTorch 2.6 before launching any workers.
+    torch.load(destination_checkpoint, map_location="cpu", weights_only=True)
     provenance = {
         "source_checkpoint": str(source_checkpoint),
         "source_sha256": hashlib.sha256(source_checkpoint.read_bytes()).hexdigest(),
