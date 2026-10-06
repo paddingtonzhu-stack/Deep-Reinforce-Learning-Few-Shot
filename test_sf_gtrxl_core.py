@@ -39,7 +39,7 @@ except ModuleNotFoundError:
         }
     )
 
-from sf_temporal_cores import GTrXLMemoryCore, GRUAttentionMemoryCore
+from sf_temporal_cores import GTrXLMemoryCore, GRUAttentionMemoryCore, ResidualLayerNormGRUCore
 
 
 def make_cfg():
@@ -158,3 +158,32 @@ def test_gru_attention_gradients_reach_attention_after_projection_update():
     assert core.gru.weight_hh.grad.abs().sum() > 0
     assert core.attention.in_proj_weight.grad is not None
     assert core.attention.in_proj_weight.grad.abs().sum() > 0
+
+
+def test_residual_layernorm_gru_packed_matches_stepwise_execution():
+    torch.manual_seed(23)
+    cfg = SimpleNamespace(rnn_size=12, rnn_num_layers=1)
+    core = ResidualLayerNormGRUCore(cfg, input_size=12).eval()
+    lengths = torch.tensor([5, 3, 2])
+    inputs = torch.randn(3, 5, 12)
+    initial_state = torch.zeros(3, 12)
+
+    expected_output = torch.zeros_like(inputs)
+    expected_state = initial_state.clone()
+    with torch.no_grad():
+        for timestep in range(inputs.shape[1]):
+            active = lengths > timestep
+            output, next_state = core(inputs[active, timestep], expected_state[active])
+            expected_output[active, timestep] = output
+            expected_state[active] = next_state
+
+        packed = pack_padded_sequence(
+            inputs, lengths.cpu(), batch_first=True, enforce_sorted=False
+        )
+        packed_output, final_state = core(packed, initial_state)
+        actual_output, _ = pad_packed_sequence(
+            packed_output, batch_first=True, total_length=inputs.shape[1]
+        )
+
+    torch.testing.assert_close(actual_output, expected_output, rtol=1e-5, atol=1e-6)
+    torch.testing.assert_close(final_state, expected_state, rtol=1e-5, atol=1e-6)

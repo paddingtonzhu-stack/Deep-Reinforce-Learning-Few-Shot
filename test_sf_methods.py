@@ -20,6 +20,17 @@ def test_standard_and_long_gru_share_architecture_settings():
     assert long_context["recurrence"] == "64"
 
 
+def test_residual_layernorm_gru_uses_matched_hidden_size():
+    residual = recurrent_options("gru_residual_ln", 64, 256, 512, 128)
+    assert residual == {
+        "use_rnn": "True",
+        "recurrence": "64",
+        "rnn_size": "512",
+        "rnn_num_layers": "1",
+        "rnn_type": "gru",
+    }
+
+
 def test_custom_temporal_state_sizes_are_explicit():
     transformer = recurrent_options("transformer", 32, 256, 512, 128)
     attention = recurrent_options("gru_attention", 32, 256, 512, 128)

@@ -332,6 +332,49 @@ class GRUAttentionMemoryCore(TransformerMemoryCore):
         return output, new_state
 
 
+class ResidualLayerNormGRUCore(ModelCore):
+    """GRU with a normalized residual path from visual features.
+
+    The recurrent state remains an ordinary 512-value GRU hidden state, so the
+    only controlled change from GRU-64 is the residual normalization applied
+    to the output consumed by the policy/value heads.
+    """
+
+    def __init__(self, cfg, input_size: int):
+        super().__init__(cfg)
+        hidden_size = int(cfg.rnn_size)
+        if int(cfg.rnn_num_layers) != 1:
+            raise ValueError("Residual LayerNorm GRU currently requires one recurrent layer")
+        if hidden_size != input_size:
+            raise ValueError(
+                "Residual LayerNorm GRU requires matched input and hidden sizes, "
+                f"got input_size={input_size}, hidden_size={hidden_size}"
+            )
+        self.gru = nn.GRU(input_size, hidden_size, num_layers=1)
+        self.output_norm = nn.LayerNorm(hidden_size)
+        self.core_output_size = hidden_size
+
+    def forward(self, head_output, rnn_states):
+        is_sequence = not torch.is_tensor(head_output)
+        gru_input = head_output if is_sequence else head_output.unsqueeze(0)
+        output, new_rnn_states = self.gru(
+            gru_input, rnn_states.unsqueeze(0).contiguous()
+        )
+        if isinstance(output, PackedSequence):
+            residual_data = output.data + head_output.data
+            output = PackedSequence(
+                self.output_norm(residual_data),
+                output.batch_sizes,
+                output.sorted_indices,
+                output.unsorted_indices,
+            )
+        else:
+            output = self.output_norm(output + gru_input)
+            if not is_sequence:
+                output = output.squeeze(0)
+        return output, new_rnn_states.squeeze(0)
+
+
 def make_temporal_core(cfg, input_size: int):
     if getattr(cfg, "memory", None) == "transformer":
         return TransformerMemoryCore(cfg, input_size)
@@ -339,6 +382,8 @@ def make_temporal_core(cfg, input_size: int):
         return GTrXLMemoryCore(cfg, input_size)
     if getattr(cfg, "memory", None) == "gru_attention":
         return GRUAttentionMemoryCore(cfg, input_size)
+    if getattr(cfg, "memory", None) == "gru_residual_ln":
+        return ResidualLayerNormGRUCore(cfg, input_size)
     return default_make_core_func(cfg, input_size)
 
 

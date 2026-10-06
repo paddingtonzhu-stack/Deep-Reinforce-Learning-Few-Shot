@@ -42,6 +42,14 @@ METHODS = {
         "The same 512-unit GRU trained with rollout/recurrence 64.",
         64,
     ),
+    "gru_residual_ln": Method(
+        "gru_residual_ln",
+        "CNN + residual LayerNorm GRU + APPO",
+        "gru_residual_ln",
+        True,
+        "A 512-unit GRU with an input residual and LayerNorm, trained at recurrence 64.",
+        64,
+    ),
     "gru_attention": Method(
         "gru_attention",
         "CNN + GRU + optional attention + APPO",
@@ -95,6 +103,14 @@ def recurrent_options(memory, context, transformer_dim, gru_hidden, attention_di
             "use_rnn": "True",
             "recurrence": str(context),
             "rnn_size": "512",
+            "rnn_type": "gru",
+        },
+        "gru_residual_ln": {
+            "use_rnn": "True",
+            "recurrence": str(context),
+            "rnn_size": "512",
+            "rnn_num_layers": "1",
+            # Sample Factory still uses this flag for recurrent trajectory handling.
             "rnn_type": "gru",
         },
         "transformer": {

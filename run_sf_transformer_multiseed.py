@@ -55,7 +55,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--memory",
-        choices=("transformer", "gtrxl", "gru_attention"),
+        choices=("transformer", "gtrxl", "gru_attention", "gru_residual_ln"),
         default="transformer",
     )
     parser.add_argument("--seeds", default="0,1,2")

@@ -72,7 +72,7 @@ def parse_corridor_cfg(argv):
     add_doom_env_args(parser)
     parser.add_argument(
         "--memory",
-        choices=("cnn", "gru", "transformer", "gtrxl", "gru_attention"),
+        choices=("cnn", "gru", "gru_residual_ln", "transformer", "gtrxl", "gru_attention"),
         default="cnn",
     )
     parser.add_argument("--transformer_context", type=int, default=32)
@@ -93,7 +93,7 @@ def main():
     custom = argparse.ArgumentParser(add_help=False)
     custom.add_argument(
         "--memory",
-        choices=("cnn", "gru", "transformer", "gtrxl", "gru_attention"),
+        choices=("cnn", "gru", "gru_residual_ln", "transformer", "gtrxl", "gru_attention"),
         default="cnn",
     )
     custom.add_argument(
