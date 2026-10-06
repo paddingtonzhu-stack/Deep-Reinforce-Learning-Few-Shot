@@ -14,7 +14,8 @@ discussion therefore means “+ Sample Factory APPO” in the code.
 | `gru_residual_ln` | CNN + residual LayerNorm GRU + APPO, recurrence 64 | Cross-seed stability candidate | Next controlled training hypothesis after GRU-64 and action-vote ensemble failed upstream gates |
 | `gru_completion_bonus` | CNN + GRU-64 + APPO with +10 successful-terminal reward | Completion-aligned training candidate | Next isolated hypothesis after residual LayerNorm GRU failed 0/3 seeds |
 | `gru_skill_curriculum` | CNN + GRU-64 + APPO, pretraining at Doom skill 1 | Exploration-stability curriculum candidate | Next isolated hypothesis after low-LR continuation failed its multi-seed gate |
-| `gru_orthogonal` | CNN + orthogonally initialized GRU-64 + APPO | Initialization-robustness candidate | Next isolated hypothesis after the skill curriculum failed 0/3 seeds |
+| `gru_orthogonal` | CNN + orthogonally initialized GRU-64 + APPO | Rejected initialization control | Failed the 2M gate: 1/3 paired wins, mean 15% vs 22%, worst 0% vs 7% |
+| `gru_lag1` | CNN + GRU-64 + lag-controlled APPO | Stale-trajectory candidate | Caps asynchronous policy lag at one version while preserving the matched GRU-64 architecture and optimizer |
 | GRU-64 late-checkpoint average | Parameter average of the two late snapshots from each GRU-64 run | Optimization-noise robustness candidate | Next isolated hypothesis after completion bonus reduced matched 2M mean completion from 22% to 13% |
 | GRU-64 ensemble | Per-action majority vote across three independently trained GRU-64 policies | Initialization-robust inference candidate | Motivated by low pairwise death-set overlap (Jaccard 0.35–0.36) after GRU-64 failed the upstream gate |
 | `gru_attention` | CNN + GRU + gated optional attention + APPO | Our experimental architecture | 88.4% enabled vs 88.0% disabled on 500 matched episodes; no demonstrated attention benefit |

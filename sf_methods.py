@@ -74,6 +74,14 @@ METHODS = {
         "GRU-64 with gate-wise orthogonal recurrent weights, Xavier input weights, and zero biases.",
         64,
     ),
+    "gru_lag1": Method(
+        "gru_lag1",
+        "CNN + GRU-64 + lag-controlled APPO",
+        "gru",
+        True,
+        "Standard GRU-64 with asynchronous learner policy lag capped at one version.",
+        64,
+    ),
     "gru_attention": Method(
         "gru_attention",
         "CNN + GRU + optional attention + APPO",

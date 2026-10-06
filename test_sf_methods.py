@@ -49,6 +49,12 @@ def test_orthogonal_gru_preserves_matched_gru64_shape():
     }
 
 
+def test_lag_control_method_preserves_standard_gru64_architecture():
+    method = method_for_training("gru_lag1")
+    assert method.memory == "gru"
+    assert method.recurrence == 64
+
+
 def test_custom_temporal_state_sizes_are_explicit():
     transformer = recurrent_options("transformer", 32, 256, 512, 128)
     attention = recurrent_options("gru_attention", 32, 256, 512, 128)

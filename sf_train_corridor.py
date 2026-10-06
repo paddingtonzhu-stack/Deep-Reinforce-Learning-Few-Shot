@@ -149,6 +149,10 @@ def main():
             argv.append(f"--rollout={selected_method.recurrence}")
         if not has_option(argv, "recurrence"):
             argv.append(f"--recurrence={selected_method.recurrence}")
+    # Isolate actor/learner staleness without changing the GRU architecture,
+    # optimizer, rollout length, or environment.
+    if selected_method and selected_method.name == "gru_lag1" and not has_option(argv, "max_policy_lag"):
+        argv.append("--max_policy_lag=1")
     completion_bonus = known.completion_bonus
     if (
         selected_method
