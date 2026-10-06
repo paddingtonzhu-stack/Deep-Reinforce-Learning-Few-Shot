@@ -49,6 +49,25 @@ and refreshes the global research catalog. Advancement requires wins on at
 least two matched training seeds, improved mean, non-degraded worst seed, and
 a mean within five completion points of upstream.
 
+The late-checkpoint average screen improved two of three paired seeds but did
+not advance: averaged policies scored 71%, 74%, and 80% versus 70%, 73%, and
+81% for their exact latest-checkpoint parents on seeds 80000--80099. Mean and
+worst-seed completion improved slightly (75.0%/71.0% versus 74.7%/70.0%), but
+the mean remained nine points behind upstream's 84.0%.
+
+The next isolated hypothesis is a two-stage optimization schedule. Each 10M
+GRU-64 run is cloned into a fresh experiment, including an exact source hash,
+then continued to 12M steps at learning rate `3e-5`. This tests whether smaller
+late updates improve cross-seed reliability without selecting training seeds,
+altering the architecture, or modifying the preserved source artifacts:
+
+```bash
+python run_sf_gru_lr_finetune.py \
+  --seeds=0,1,2 --gpu=0 --learning-rate=3e-5 \
+  --target-env-steps=12000000 \
+  --train-dir=artifacts/sample_factory_gru_lr_finetune_12m
+```
+
 List these definitions from the code:
 
 ```bash
