@@ -100,10 +100,15 @@ def main():
                 f"seed={seed} gpu={gpu} =====\n"
             )
             handle.flush()
+            method_args = (
+                ["--method=gru_residual_ln"]
+                if args.memory == "gru_residual_ln"
+                else [f"--memory={args.memory}"]
+            )
             command = [
                 sys.executable,
                 "sf_train_corridor.py",
-                f"--memory={args.memory}",
+                *method_args,
                 f"--transformer-context={args.context}",
                 f"--transformer-dim={model_dim}",
                 f"--transformer-layers={args.layers}",
