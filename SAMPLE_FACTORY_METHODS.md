@@ -14,6 +14,7 @@ discussion therefore means “+ Sample Factory APPO” in the code.
 | `gru_residual_ln` | CNN + residual LayerNorm GRU + APPO, recurrence 64 | Cross-seed stability candidate | Next controlled training hypothesis after GRU-64 and action-vote ensemble failed upstream gates |
 | `gru_completion_bonus` | CNN + GRU-64 + APPO with +10 successful-terminal reward | Completion-aligned training candidate | Next isolated hypothesis after residual LayerNorm GRU failed 0/3 seeds |
 | `gru_skill_curriculum` | CNN + GRU-64 + APPO, pretraining at Doom skill 1 | Exploration-stability curriculum candidate | Next isolated hypothesis after low-LR continuation failed its multi-seed gate |
+| `gru_orthogonal` | CNN + orthogonally initialized GRU-64 + APPO | Initialization-robustness candidate | Next isolated hypothesis after the skill curriculum failed 0/3 seeds |
 | GRU-64 late-checkpoint average | Parameter average of the two late snapshots from each GRU-64 run | Optimization-noise robustness candidate | Next isolated hypothesis after completion bonus reduced matched 2M mean completion from 22% to 13% |
 | GRU-64 ensemble | Per-action majority vote across three independently trained GRU-64 policies | Initialization-robust inference candidate | Motivated by low pairwise death-set overlap (Jaccard 0.35–0.36) after GRU-64 failed the upstream gate |
 | `gru_attention` | CNN + GRU + gated optional attention + APPO | Our experimental architecture | 88.4% enabled vs 88.0% disabled on 500 matched episodes; no demonstrated attention benefit |
@@ -104,6 +105,34 @@ seeds `100000--100099`:
 python run_sf_gru_skill_curriculum_screen.py \
   --episodes=100 --seed-start=100000 --device=gpu
 ```
+
+The skill curriculum failed decisively: all three curriculum policies scored
+0% completion versus 42%, 5%, and 16% for their budget-matched controls on
+seeds 100000--100099. The next isolated hypothesis addresses the observed
+cross-seed optimization variance directly with a fixed GRU initialization
+recipe. It preserves the GRU-64 architecture, APPO settings, and 2M budget,
+but initializes each recurrent gate matrix orthogonally, each input matrix
+with Xavier uniform weights, and all GRU biases to zero.
+
+Train three seeds with:
+
+```bash
+python run_sf_transformer_multiseed.py \
+  --memory=gru_orthogonal --seeds=0,1,2 --gpus=0,1 \
+  --num-policies=1 --steps=2000000 --context=64 \
+  --train-dir=artifacts/sample_factory_gru_orthogonal_2m
+```
+
+Evaluate on the fresh 110000--110099 range with:
+
+```bash
+python run_sf_gru_orthogonal_screen.py \
+  --episodes=100 --seed-start=110000 --device=gpu
+```
+
+The unchanged gate requires at least two paired wins, improved mean,
+non-degraded worst seed, and candidate mean within five completion points of
+upstream.
 
 List these definitions from the code:
 

@@ -66,6 +66,14 @@ METHODS = {
         "GRU-64 pretraining at Doom skill 1 before standard skill-5 training.",
         64,
     ),
+    "gru_orthogonal": Method(
+        "gru_orthogonal",
+        "CNN + orthogonally initialized GRU-64 + APPO",
+        "gru_orthogonal",
+        True,
+        "GRU-64 with gate-wise orthogonal recurrent weights, Xavier input weights, and zero biases.",
+        64,
+    ),
     "gru_attention": Method(
         "gru_attention",
         "CNN + GRU + optional attention + APPO",
@@ -127,6 +135,13 @@ def recurrent_options(memory, context, transformer_dim, gru_hidden, attention_di
             "rnn_size": "512",
             "rnn_num_layers": "1",
             # Sample Factory still uses this flag for recurrent trajectory handling.
+            "rnn_type": "gru",
+        },
+        "gru_orthogonal": {
+            "use_rnn": "True",
+            "recurrence": str(context),
+            "rnn_size": "512",
+            "rnn_num_layers": "1",
             "rnn_type": "gru",
         },
         "transformer": {

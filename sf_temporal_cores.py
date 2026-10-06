@@ -375,6 +375,44 @@ class ResidualLayerNormGRUCore(ModelCore):
         return output, new_rnn_states.squeeze(0)
 
 
+class OrthogonalGRUCore(ModelCore):
+    """A standard GRU with a fixed, seed-robust initialization recipe.
+
+    The architecture and recurrent-state interface are identical to the
+    built-in one-layer GRU. Only parameter initialization changes: each of the
+    three recurrent gate matrices is orthogonal, input matrices use Xavier
+    uniform initialization, and both bias vectors start at zero.
+    """
+
+    def __init__(self, cfg, input_size: int):
+        super().__init__(cfg)
+        hidden_size = int(cfg.rnn_size)
+        if int(cfg.rnn_num_layers) != 1:
+            raise ValueError("Orthogonal GRU currently requires one recurrent layer")
+        self.gru = nn.GRU(input_size, hidden_size, num_layers=1)
+        self.core_output_size = hidden_size
+        self._initialize_gate_parameters()
+
+    def _initialize_gate_parameters(self):
+        with torch.no_grad():
+            for gate in self.gru.weight_ih_l0.chunk(3, dim=0):
+                nn.init.xavier_uniform_(gate)
+            for gate in self.gru.weight_hh_l0.chunk(3, dim=0):
+                nn.init.orthogonal_(gate)
+            nn.init.zeros_(self.gru.bias_ih_l0)
+            nn.init.zeros_(self.gru.bias_hh_l0)
+
+    def forward(self, head_output, rnn_states):
+        is_sequence = not torch.is_tensor(head_output)
+        gru_input = head_output if is_sequence else head_output.unsqueeze(0)
+        output, new_rnn_states = self.gru(
+            gru_input, rnn_states.unsqueeze(0).contiguous()
+        )
+        if not is_sequence:
+            output = output.squeeze(0)
+        return output, new_rnn_states.squeeze(0)
+
+
 def make_temporal_core(cfg, input_size: int):
     if getattr(cfg, "memory", None) == "transformer":
         return TransformerMemoryCore(cfg, input_size)
@@ -384,6 +422,8 @@ def make_temporal_core(cfg, input_size: int):
         return GRUAttentionMemoryCore(cfg, input_size)
     if getattr(cfg, "memory", None) == "gru_residual_ln":
         return ResidualLayerNormGRUCore(cfg, input_size)
+    if getattr(cfg, "memory", None) == "gru_orthogonal":
+        return OrthogonalGRUCore(cfg, input_size)
     return default_make_core_func(cfg, input_size)
 
 

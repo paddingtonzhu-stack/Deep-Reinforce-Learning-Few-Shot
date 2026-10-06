@@ -61,6 +61,7 @@ def main():
             "gru_attention",
             "gru_residual_ln",
             "gru_completion_bonus",
+            "gru_orthogonal",
         ),
         default="transformer",
     )
@@ -108,7 +109,7 @@ def main():
             handle.flush()
             method_args = (
                 [f"--method={args.memory}"]
-                if args.memory in ("gru_residual_ln", "gru_completion_bonus")
+                if args.memory in ("gru_residual_ln", "gru_completion_bonus", "gru_orthogonal")
                 else [f"--memory={args.memory}"]
             )
             command = [
