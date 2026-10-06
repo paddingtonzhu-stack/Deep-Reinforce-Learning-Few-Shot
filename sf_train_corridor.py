@@ -211,7 +211,8 @@ def main():
         f"Matched Sample Factory run: method={known.method or memory}, memory={cfg.memory}, "
         f"use_rnn={cfg.use_rnn}, "
         f"recurrence={cfg.recurrence}, workers={cfg.num_workers}, "
-        f"envs_per_worker={cfg.num_envs_per_worker}, budget={cfg.train_for_env_steps}",
+        f"envs_per_worker={cfg.num_envs_per_worker}, max_policy_lag={cfg.max_policy_lag}, "
+        f"budget={cfg.train_for_env_steps}",
         flush=True,
     )
     if known.check_config:
