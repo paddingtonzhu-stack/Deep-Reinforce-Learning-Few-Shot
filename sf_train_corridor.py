@@ -11,7 +11,11 @@ from sample_factory.train import run_rl
 from sf_examples.vizdoom.doom.doom_params import add_doom_env_args, doom_override_defaults
 from sf_examples.vizdoom.train_vizdoom import register_vizdoom_components
 
-from sf_corridor_objective import COMPLETION_ENV, register_corridor_completion_env
+from sf_corridor_objective import (
+    COMPLETION_ENV,
+    SHAPED_COMPLETION_ENV,
+    register_corridor_completion_env,
+)
 from sf_methods import TRAINABLE_METHODS, format_method_catalog, method_for_training, recurrent_options
 from sf_temporal_cores import register_temporal_core
 
@@ -85,6 +89,7 @@ def parse_corridor_cfg(argv):
     parser.add_argument("--gru_attention_hidden_size", type=int, default=512)
     parser.add_argument("--gru_attention_dim", type=int, default=128)
     parser.add_argument("--gru_attention_gate_init", type=float, default=-2.0)
+    parser.add_argument("--completion_bonus", type=float, default=0.0)
     doom_override_defaults(parser)
     return parse_full_cfg(parser, argv)
 
@@ -112,6 +117,7 @@ def main():
     custom.add_argument("--gru-attention-hidden-size", type=int, default=512)
     custom.add_argument("--gru-attention-dim", type=int, default=128)
     custom.add_argument("--gru-attention-gate-init", type=float, default=-2.0)
+    custom.add_argument("--completion-bonus", type=float, default=0.0)
     custom.add_argument(
         "--completion-objective",
         action="store_true",
@@ -140,8 +146,20 @@ def main():
             argv.append(f"--rollout={selected_method.recurrence}")
         if not has_option(argv, "recurrence"):
             argv.append(f"--recurrence={selected_method.recurrence}")
+    completion_bonus = known.completion_bonus
+    if (
+        selected_method
+        and selected_method.name == "gru_completion_bonus"
+        and not any(
+            arg == "--completion-bonus" or arg.startswith("--completion-bonus=")
+            for arg in sys.argv[1:]
+        )
+    ):
+        completion_bonus = 10.0
     if known.completion_objective and not has_option(argv, "env"):
         argv.append(f"--env={COMPLETION_ENV}")
+    elif completion_bonus != 0.0 and not has_option(argv, "env"):
+        argv.append(f"--env={SHAPED_COMPLETION_ENV}")
     for name, value in MATCHED_DEFAULTS.items():
         if not has_option(argv, name):
             argv.append(f"--{name}={value}")
@@ -158,6 +176,7 @@ def main():
         "gru_attention_hidden_size": known.gru_attention_hidden_size,
         "gru_attention_dim": known.gru_attention_dim,
         "gru_attention_gate_init": known.gru_attention_gate_init,
+        "completion_bonus": completion_bonus,
     }
     for name, value in custom_cfg.items():
         if not has_option(argv, name):

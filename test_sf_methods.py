@@ -31,6 +31,12 @@ def test_residual_layernorm_gru_uses_matched_hidden_size():
     }
 
 
+def test_completion_bonus_method_preserves_gru64_architecture():
+    method = method_for_training("gru_completion_bonus")
+    assert method.memory == "gru"
+    assert method.recurrence == 64
+
+
 def test_custom_temporal_state_sizes_are_explicit():
     transformer = recurrent_options("transformer", 32, 256, 512, 128)
     attention = recurrent_options("gru_attention", 32, 256, 512, 128)

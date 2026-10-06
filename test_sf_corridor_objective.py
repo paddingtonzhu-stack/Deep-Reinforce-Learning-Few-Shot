@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import gymnasium as gym
 
-from sf_corridor_objective import CorridorCompletionObjective
+from sf_corridor_objective import CorridorCompletionBonus, CorridorCompletionObjective
 
 
 class FakeCorridor(gym.Env):
@@ -31,3 +31,18 @@ def test_truncation_and_nonterminal_steps_are_not_successes():
     running = CorridorCompletionObjective(FakeCorridor(terminated=False, truncated=False, dead=False)).step(0)
     assert truncated[-1]["true_objective"] == 0.0
     assert "true_objective" not in running[-1]
+
+
+def test_completion_bonus_changes_only_successful_terminal_reward():
+    completed = CorridorCompletionBonus(
+        FakeCorridor(terminated=True, truncated=False, dead=False), 10.0
+    ).step(0)
+    death = CorridorCompletionBonus(
+        FakeCorridor(terminated=True, truncated=False, dead=True), 10.0
+    ).step(0)
+    running = CorridorCompletionBonus(
+        FakeCorridor(terminated=False, truncated=False, dead=False), 10.0
+    ).step(0)
+    assert completed[1] == 13.5
+    assert death[1] == 3.5
+    assert running[1] == 3.5

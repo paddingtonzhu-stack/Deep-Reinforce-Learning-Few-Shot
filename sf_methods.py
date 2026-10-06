@@ -50,6 +50,14 @@ METHODS = {
         "A 512-unit GRU with an input residual and LayerNorm, trained at recurrence 64.",
         64,
     ),
+    "gru_completion_bonus": Method(
+        "gru_completion_bonus",
+        "CNN + GRU-64 + completion-bonus APPO",
+        "gru",
+        True,
+        "Standard GRU-64 trained with a +10 terminal completion bonus.",
+        64,
+    ),
     "gru_attention": Method(
         "gru_attention",
         "CNN + GRU + optional attention + APPO",

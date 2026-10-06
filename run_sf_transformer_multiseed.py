@@ -55,7 +55,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--memory",
-        choices=("transformer", "gtrxl", "gru_attention", "gru_residual_ln"),
+        choices=(
+            "transformer",
+            "gtrxl",
+            "gru_attention",
+            "gru_residual_ln",
+            "gru_completion_bonus",
+        ),
         default="transformer",
     )
     parser.add_argument("--seeds", default="0,1,2")
@@ -101,8 +107,8 @@ def main():
             )
             handle.flush()
             method_args = (
-                ["--method=gru_residual_ln"]
-                if args.memory == "gru_residual_ln"
+                [f"--method={args.memory}"]
+                if args.memory in ("gru_residual_ln", "gru_completion_bonus")
                 else [f"--memory={args.memory}"]
             )
             command = [
