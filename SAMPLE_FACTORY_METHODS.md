@@ -13,6 +13,7 @@ discussion therefore means “+ Sample Factory APPO” in the code.
 | `gru_long` | Same GRU + APPO, recurrence 64 | Current controlled improvement experiment | Pending GRU-32 vs GRU-64 study |
 | `gru_residual_ln` | CNN + residual LayerNorm GRU + APPO, recurrence 64 | Cross-seed stability candidate | Next controlled training hypothesis after GRU-64 and action-vote ensemble failed upstream gates |
 | `gru_completion_bonus` | CNN + GRU-64 + APPO with +10 successful-terminal reward | Completion-aligned training candidate | Next isolated hypothesis after residual LayerNorm GRU failed 0/3 seeds |
+| GRU-64 late-checkpoint average | Parameter average of the two late snapshots from each GRU-64 run | Optimization-noise robustness candidate | Next isolated hypothesis after completion bonus reduced matched 2M mean completion from 22% to 13% |
 | GRU-64 ensemble | Per-action majority vote across three independently trained GRU-64 policies | Initialization-robust inference candidate | Motivated by low pairwise death-set overlap (Jaccard 0.35–0.36) after GRU-64 failed the upstream gate |
 | `gru_attention` | CNN + GRU + gated optional attention + APPO | Our experimental architecture | 88.4% enabled vs 88.0% disabled on 500 matched episodes; no demonstrated attention benefit |
 | `transformer` | CNN + causal finite-memory Transformer + APPO | Experimental architecture | Failed: 0.3% aggregate completion |
@@ -23,6 +24,17 @@ The locally trained `gru_attention` seed-0 checkpoint reached 88.4%, but
 disabling its attention branch retained 88.0%. It should therefore be described
 as a strong locally trained **GRU-based checkpoint**, not evidence that
 attention improves GRU.
+
+The completion-bonus screen failed its predefined gate: shaped seeds achieved
+8%, 15%, and 16% completion, versus 38%, 9%, and 19% for their budget-matched
+GRU-64 controls on seeds 70000--70099. It won only one of three comparisons and
+reduced both mean and worst-seed completion, so it must not advance.
+
+The next isolated hypothesis averages the two late checkpoints from each
+already-completed 10M GRU-64 run. This is evaluated per training seed and does
+not select or combine favorable seeds. Use `average_sf_checkpoints.py`; it
+averages learned floating tensors while retaining the newest checkpoint's
+normalization statistics and metadata.
 
 List these definitions from the code:
 
