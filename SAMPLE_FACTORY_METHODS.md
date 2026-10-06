@@ -36,6 +36,19 @@ not select or combine favorable seeds. Use `average_sf_checkpoints.py`; it
 averages learned floating tensors while retaining the newest checkpoint's
 normalization statistics and metadata.
 
+Run the paired three-seed screen on a fresh evaluation range with:
+
+```bash
+python run_sf_gru_swa_screen.py \
+  --episodes=100 --seed-start=80000 --device=gpu
+```
+
+The launcher evaluates three averaged policies, their three exact latest-
+checkpoint parents, and upstream. It writes paired failures, `swa_report.json`,
+and refreshes the global research catalog. Advancement requires wins on at
+least two matched training seeds, improved mean, non-degraded worst seed, and
+a mean within five completion points of upstream.
+
 List these definitions from the code:
 
 ```bash
