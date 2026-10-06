@@ -33,9 +33,15 @@ def latest_episodes(root: Path) -> Path:
 def completion_percent(path: Path) -> float:
     with path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
-    if not rows or "outcome" not in rows[0]:
-        raise ValueError(f"{path} has no episode outcomes")
-    return 100.0 * sum(row["outcome"] == "completed" for row in rows) / len(rows)
+    if not rows:
+        raise ValueError(f"{path} has no episodes")
+    if "completed" in rows[0]:
+        completed = sum(row["completed"].strip().lower() in {"true", "1"} for row in rows)
+    elif "outcome" in rows[0]:
+        completed = sum(row["outcome"] == "completed" for row in rows)
+    else:
+        raise ValueError(f"{path} has neither a completed nor outcome column")
+    return 100.0 * completed / len(rows)
 
 
 def evaluate(
@@ -81,6 +87,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--seed-start", type=int, default=80000)
     parser.add_argument("--device", default="gpu")
+    parser.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Reuse seven completed evaluations and only regenerate paired/report/catalog outputs.",
+    )
     return parser.parse_args()
 
 
@@ -89,61 +100,61 @@ def main() -> int:
     seeds = [int(item) for item in args.seeds.split(",")]
     if len(seeds) < 3:
         raise ValueError("the controlled screen requires at least three training seeds")
-    args.output_train_dir.mkdir(parents=True, exist_ok=True)
     args.results_root.mkdir(parents=True, exist_ok=True)
+    if not args.report_only:
+        args.output_train_dir.mkdir(parents=True, exist_ok=True)
+        for seed in seeds:
+            source_name = f"sf_corridor_gru_r64_seed_{seed}"
+            output_name = f"sf_corridor_gru_swa_seed_{seed}"
+            source_dir = args.source_train_dir / source_name
+            output_dir = args.output_train_dir / output_name
+            regular = sorted((source_dir / "checkpoint_p0").glob("checkpoint_*.pth"))
+            if len(regular) != 2:
+                raise ValueError(
+                    f"expected exactly two late checkpoints for {source_name}, found {len(regular)}"
+                )
 
-    for seed in seeds:
-        source_name = f"sf_corridor_gru_r64_seed_{seed}"
-        output_name = f"sf_corridor_gru_swa_seed_{seed}"
-        source_dir = args.source_train_dir / source_name
-        output_dir = args.output_train_dir / output_name
-        regular = sorted((source_dir / "checkpoint_p0").glob("checkpoint_*.pth"))
-        if len(regular) != 2:
-            raise ValueError(
-                f"expected exactly two late checkpoints for {source_name}, found {len(regular)}"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            config = json.loads((source_dir / "config.json").read_text(encoding="utf-8"))
+            config["experiment"] = output_name
+            config["train_dir"] = str(args.output_train_dir)
+            (output_dir / "config.json").write_text(
+                json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            output_checkpoint = output_dir / "checkpoint_p0" / regular[-1].name
+            average_checkpoints(regular, output_checkpoint)
+
+            evaluate(
+                sys.executable,
+                output_name,
+                args.output_train_dir,
+                "latest",
+                args.episodes,
+                args.seed_start,
+                args.device,
+                args.results_root / f"swa_seed{seed}",
+            )
+            evaluate(
+                sys.executable,
+                source_name,
+                args.source_train_dir,
+                "latest",
+                args.episodes,
+                args.seed_start,
+                args.device,
+                args.results_root / f"latest_seed{seed}",
             )
 
-        output_dir.mkdir(parents=True, exist_ok=True)
-        config = json.loads((source_dir / "config.json").read_text(encoding="utf-8"))
-        config["experiment"] = output_name
-        config["train_dir"] = str(args.output_train_dir)
-        (output_dir / "config.json").write_text(
-            json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
-        output_checkpoint = output_dir / "checkpoint_p0" / regular[-1].name
-        average_checkpoints(regular, output_checkpoint)
-
         evaluate(
             sys.executable,
-            output_name,
-            args.output_train_dir,
-            "latest",
+            "deadly-corridor-upstream",
+            Path("artifacts"),
+            "best",
             args.episodes,
             args.seed_start,
             args.device,
-            args.results_root / f"swa_seed{seed}",
+            args.results_root / "upstream",
         )
-        evaluate(
-            sys.executable,
-            source_name,
-            args.source_train_dir,
-            "latest",
-            args.episodes,
-            args.seed_start,
-            args.device,
-            args.results_root / f"latest_seed{seed}",
-        )
-
-    evaluate(
-        sys.executable,
-        "deadly-corridor-upstream",
-        Path("artifacts"),
-        "best",
-        args.episodes,
-        args.seed_start,
-        args.device,
-        args.results_root / "upstream",
-    )
 
     groups: list[tuple[str, Path]] = []
     for seed in seeds:
