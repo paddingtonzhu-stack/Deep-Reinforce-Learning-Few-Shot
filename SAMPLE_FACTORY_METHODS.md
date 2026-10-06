@@ -68,6 +68,18 @@ python run_sf_gru_lr_finetune.py \
   --train-dir=artifacts/sample_factory_gru_lr_finetune_12m
 ```
 
+After all three continuations finish, evaluate them and their exact 10M parents
+on the fresh `90000--90099` range:
+
+```bash
+python run_sf_gru_lr_finetune_screen.py \
+  --episodes=100 --seed-start=90000 --device=gpu
+```
+
+The stage advances only with at least two paired seed wins, improved mean,
+non-degraded worst-seed completion, and a mean within five completion points
+of upstream.
+
 List these definitions from the code:
 
 ```bash
