@@ -66,6 +66,7 @@ def main():
             "gru_sync",
             "gru_explore",
             "gru_state_refresh",
+            "gru_resnet_impala",
         ),
         default="transformer",
     )
@@ -121,6 +122,7 @@ def main():
                     "gru_sync",
                     "gru_explore",
                     "gru_state_refresh",
+                    "gru_resnet_impala",
                 )
                 else [f"--memory={args.memory}"]
             )

@@ -171,6 +171,10 @@ def main():
         argv, "exploration_loss_coeff"
     ):
         argv.append("--exploration_loss_coeff=0.003")
+    if selected_method and selected_method.name == "gru_resnet_impala" and not has_option(
+        argv, "encoder_conv_architecture"
+    ):
+        argv.append("--encoder_conv_architecture=resnet_impala")
     completion_bonus = known.completion_bonus
     if (
         selected_method

@@ -106,6 +106,14 @@ METHODS = {
         "A standard GRU over 128 learner steps, detaching its current-policy hidden state every 64 steps.",
         128,
     ),
+    "gru_resnet_impala": Method(
+        "gru_resnet_impala",
+        "IMPALA ResNet + GRU-64 + APPO",
+        "gru",
+        True,
+        "Genuine three-stage residual IMPALA visual encoder with the unchanged GRU-64 temporal core.",
+        64,
+    ),
     "gru_attention": Method(
         "gru_attention",
         "CNN + GRU + optional attention + APPO",
