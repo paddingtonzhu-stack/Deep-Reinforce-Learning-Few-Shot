@@ -66,7 +66,7 @@ def main() -> int:
             "episodes": args.episodes,
             "seed_start": args.seed_start,
             "training_seeds": seeds,
-            "candidate": "2M synchronous GRU-64 (async_rl=False)",
+            "candidate": "2M synchronous GRU-64 (async_rl=False, two 1024-sample batches/collection)",
             "baseline": "2M asynchronous GRU-64 (async_rl=True)",
         },
         "candidate_completion": candidate,

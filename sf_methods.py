@@ -87,7 +87,7 @@ METHODS = {
         "CNN + GRU-64 + synchronous PPO",
         "gru",
         True,
-        "Standard GRU-64 with synchronous rollout collection (async_rl=False).",
+        "Standard GRU-64 with synchronous rollout collection and exact one-pass batch accounting.",
         64,
     ),
     "gru_attention": Method(
