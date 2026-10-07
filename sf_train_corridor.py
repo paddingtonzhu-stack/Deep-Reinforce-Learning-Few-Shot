@@ -77,7 +77,7 @@ def parse_corridor_cfg(argv):
     add_doom_env_args(parser)
     parser.add_argument(
         "--memory",
-        choices=("cnn", "gru", "gru_residual_ln", "gru_orthogonal", "transformer", "gtrxl", "gru_attention"),
+        choices=("cnn", "gru", "gru_residual_ln", "gru_orthogonal", "gru_state_refresh", "transformer", "gtrxl", "gru_attention"),
         default="cnn",
     )
     parser.add_argument("--transformer_context", type=int, default=32)
@@ -90,6 +90,7 @@ def parse_corridor_cfg(argv):
     parser.add_argument("--gru_attention_hidden_size", type=int, default=512)
     parser.add_argument("--gru_attention_dim", type=int, default=128)
     parser.add_argument("--gru_attention_gate_init", type=float, default=-2.0)
+    parser.add_argument("--gru_state_refresh_interval", type=int, default=64)
     parser.add_argument("--completion_bonus", type=float, default=0.0)
     parser.add_argument("--corridor_skill", type=int, default=5)
     doom_override_defaults(parser)
@@ -100,7 +101,7 @@ def main():
     custom = argparse.ArgumentParser(add_help=False)
     custom.add_argument(
         "--memory",
-        choices=("cnn", "gru", "gru_residual_ln", "gru_orthogonal", "transformer", "gtrxl", "gru_attention"),
+        choices=("cnn", "gru", "gru_residual_ln", "gru_orthogonal", "gru_state_refresh", "transformer", "gtrxl", "gru_attention"),
         default="cnn",
     )
     custom.add_argument(
@@ -119,6 +120,7 @@ def main():
     custom.add_argument("--gru-attention-hidden-size", type=int, default=512)
     custom.add_argument("--gru-attention-dim", type=int, default=128)
     custom.add_argument("--gru-attention-gate-init", type=float, default=-2.0)
+    custom.add_argument("--gru-state-refresh-interval", type=int, default=64)
     custom.add_argument("--completion-bonus", type=float, default=0.0)
     custom.add_argument("--corridor-skill", type=int, default=5)
     custom.add_argument(
@@ -201,6 +203,7 @@ def main():
         "gru_attention_hidden_size": known.gru_attention_hidden_size,
         "gru_attention_dim": known.gru_attention_dim,
         "gru_attention_gate_init": known.gru_attention_gate_init,
+        "gru_state_refresh_interval": known.gru_state_refresh_interval,
         "completion_bonus": completion_bonus,
         "corridor_skill": known.corridor_skill,
     }

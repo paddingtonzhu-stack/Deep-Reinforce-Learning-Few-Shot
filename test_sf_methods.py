@@ -67,6 +67,18 @@ def test_exploration_method_preserves_standard_gru64_architecture():
     assert method.recurrence == 64
 
 
+def test_state_refresh_uses_two_loss_preserving_gru64_segments():
+    method = method_for_training("gru_state_refresh")
+    assert method.recurrence == 128
+    assert recurrent_options("gru_state_refresh", 128, 256, 512, 128) == {
+        "use_rnn": "True",
+        "recurrence": "128",
+        "rnn_size": "512",
+        "rnn_num_layers": "1",
+        "rnn_type": "gru",
+    }
+
+
 def test_custom_temporal_state_sizes_are_explicit():
     transformer = recurrent_options("transformer", 32, 256, 512, 128)
     attention = recurrent_options("gru_attention", 32, 256, 512, 128)

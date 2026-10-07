@@ -44,6 +44,7 @@ from sf_temporal_cores import (
     GRUAttentionMemoryCore,
     OrthogonalGRUCore,
     ResidualLayerNormGRUCore,
+    StateRefreshGRUCore,
 )
 
 
@@ -227,3 +228,45 @@ def test_orthogonal_gru_packed_matches_stepwise_execution():
         )
     torch.testing.assert_close(actual_output, expected_output, rtol=1e-5, atol=1e-6)
     torch.testing.assert_close(final_state, expected_state, rtol=1e-5, atol=1e-6)
+
+
+def make_state_refresh_cfg():
+    return SimpleNamespace(
+        rnn_size=12,
+        rnn_num_layers=1,
+        recurrence=8,
+        gru_state_refresh_interval=4,
+    )
+
+
+def test_state_refresh_gru_matches_standard_gru_forward():
+    torch.manual_seed(37)
+    core = StateRefreshGRUCore(make_state_refresh_cfg(), input_size=12)
+    reference = nn.GRUCell(12, 12)
+    reference.load_state_dict(core.gru.state_dict())
+    inputs = torch.randn(2, 8, 12)
+    lengths = torch.tensor([8, 6])
+    initial_state = torch.randn(2, 12)
+    expected = torch.zeros_like(inputs)
+    expected_state = initial_state.clone()
+    for timestep in range(inputs.shape[1]):
+        active = lengths > timestep
+        expected_state[active] = reference(inputs[active, timestep], expected_state[active])
+        expected[active, timestep] = expected_state[active]
+    packed = pack_padded_sequence(inputs, lengths.cpu(), batch_first=True, enforce_sorted=False)
+    packed_output, final_state = core(packed, initial_state)
+    actual, _ = pad_packed_sequence(packed_output, batch_first=True, total_length=8)
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
+    torch.testing.assert_close(final_state, expected_state, rtol=1e-5, atol=1e-6)
+
+
+def test_state_refresh_detaches_second_half_from_first_half_inputs():
+    torch.manual_seed(41)
+    core = StateRefreshGRUCore(make_state_refresh_cfg(), input_size=12)
+    inputs = torch.randn(1, 8, 12, requires_grad=True)
+    packed = pack_padded_sequence(inputs, torch.tensor([8]), batch_first=True)
+    packed_output, _ = core(packed, torch.zeros(1, 12))
+    output, _ = pad_packed_sequence(packed_output, batch_first=True)
+    output[:, 4:].square().mean().backward()
+    assert torch.count_nonzero(inputs.grad[:, :4]) == 0
+    assert torch.count_nonzero(inputs.grad[:, 4:]) > 0

@@ -98,6 +98,14 @@ METHODS = {
         "Standard asynchronous GRU-64 with exploration-loss coefficient increased from 0.001 to 0.003.",
         64,
     ),
+    "gru_state_refresh": Method(
+        "gru_state_refresh",
+        "CNN + state-refresh GRU + APPO",
+        "gru_state_refresh",
+        True,
+        "A standard GRU over 128 learner steps, detaching its current-policy hidden state every 64 steps.",
+        128,
+    ),
     "gru_attention": Method(
         "gru_attention",
         "CNN + GRU + optional attention + APPO",
@@ -162,6 +170,13 @@ def recurrent_options(memory, context, transformer_dim, gru_hidden, attention_di
             "rnn_type": "gru",
         },
         "gru_orthogonal": {
+            "use_rnn": "True",
+            "recurrence": str(context),
+            "rnn_size": "512",
+            "rnn_num_layers": "1",
+            "rnn_type": "gru",
+        },
+        "gru_state_refresh": {
             "use_rnn": "True",
             "recurrence": str(context),
             "rnn_size": "512",

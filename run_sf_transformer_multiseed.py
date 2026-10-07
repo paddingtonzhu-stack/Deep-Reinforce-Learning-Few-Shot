@@ -65,6 +65,7 @@ def main():
             "gru_lag1",
             "gru_sync",
             "gru_explore",
+            "gru_state_refresh",
         ),
         default="transformer",
     )
@@ -119,6 +120,7 @@ def main():
                     "gru_lag1",
                     "gru_sync",
                     "gru_explore",
+                    "gru_state_refresh",
                 )
                 else [f"--memory={args.memory}"]
             )

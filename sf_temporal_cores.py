@@ -413,6 +413,72 @@ class OrthogonalGRUCore(ModelCore):
         return output, new_rnn_states.squeeze(0)
 
 
+class StateRefreshGRUCore(ModelCore):
+    """Numerically standard GRU with loss-preserving recurrent-state refresh.
+
+    Sample Factory normally starts every recurrence chunk from a hidden state
+    saved by the (possibly stale) behavior policy.  This core instead consumes
+    a 128-step learner sequence and recomputes the midpoint state with current
+    parameters.  Detaching at the configured midpoint retains the matched
+    64-step gradient horizon while all 128 observations still contribute loss.
+    """
+
+    def __init__(self, cfg, input_size: int):
+        super().__init__(cfg)
+        hidden_size = int(cfg.rnn_size)
+        if int(cfg.rnn_num_layers) != 1:
+            raise ValueError("State-refresh GRU currently requires one recurrent layer")
+        self.refresh_interval = int(cfg.gru_state_refresh_interval)
+        if self.refresh_interval < 1:
+            raise ValueError("gru_state_refresh_interval must be positive")
+        if int(cfg.recurrence) % self.refresh_interval != 0:
+            raise ValueError("recurrence must be divisible by gru_state_refresh_interval")
+        self.gru = nn.GRUCell(input_size, hidden_size)
+        self.core_output_size = hidden_size
+
+    def _step(self, x: torch.Tensor, state: torch.Tensor):
+        state = self.gru(x, state)
+        return state, state
+
+    def _packed_forward(self, packed: PackedSequence, state: torch.Tensor):
+        if packed.sorted_indices is not None:
+            state = state.index_select(0, packed.sorted_indices.to(state.device))
+
+        outputs = []
+        offset = 0
+        for timestep, batch_size_tensor in enumerate(packed.batch_sizes):
+            batch_size = int(batch_size_tensor.item())
+            active_state = state[:batch_size]
+            if timestep and timestep % self.refresh_interval == 0:
+                active_state = active_state.detach()
+            x_t = packed.data[offset : offset + batch_size]
+            y_t, next_state = self._step(x_t, active_state)
+            outputs.append(y_t)
+            state = (
+                torch.cat((next_state, state[batch_size:]), dim=0)
+                if batch_size < state.shape[0]
+                else next_state
+            )
+            offset += batch_size
+
+        final_state = (
+            state.index_select(0, packed.unsorted_indices.to(state.device))
+            if packed.unsorted_indices is not None
+            else state
+        )
+        return PackedSequence(
+            torch.cat(outputs, dim=0),
+            packed.batch_sizes,
+            packed.sorted_indices,
+            packed.unsorted_indices,
+        ), final_state
+
+    def forward(self, head_output, rnn_states):
+        if isinstance(head_output, PackedSequence):
+            return self._packed_forward(head_output, rnn_states)
+        return self._step(head_output, rnn_states)
+
+
 def make_temporal_core(cfg, input_size: int):
     if getattr(cfg, "memory", None) == "transformer":
         return TransformerMemoryCore(cfg, input_size)
@@ -424,6 +490,8 @@ def make_temporal_core(cfg, input_size: int):
         return ResidualLayerNormGRUCore(cfg, input_size)
     if getattr(cfg, "memory", None) == "gru_orthogonal":
         return OrthogonalGRUCore(cfg, input_size)
+    if getattr(cfg, "memory", None) == "gru_state_refresh":
+        return StateRefreshGRUCore(cfg, input_size)
     return default_make_core_func(cfg, input_size)
 
 
