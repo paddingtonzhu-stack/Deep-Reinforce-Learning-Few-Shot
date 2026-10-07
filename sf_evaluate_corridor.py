@@ -139,6 +139,16 @@ def main():
     parser.add_argument("--train-dir", type=Path, default=Path("artifacts"))
     parser.add_argument("--policy-index", type=int, default=0)
     parser.add_argument("--checkpoint", choices=("best", "latest"), default="best")
+    parser.add_argument(
+        "--checkpoint-path",
+        action="append",
+        type=Path,
+        default=[],
+        help=(
+            "Load this exact checkpoint instead of resolving --checkpoint. "
+            "Repeat once per --ensemble-experiment when evaluating an ensemble."
+        ),
+    )
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--seed-start", type=int, default=10_000)
     parser.add_argument("--device", choices=("cpu", "gpu"), default="gpu")
@@ -165,6 +175,10 @@ def main():
 
     register_components()
     experiments = args.ensemble_experiment or [args.experiment]
+    if args.checkpoint_path and len(args.checkpoint_path) != len(experiments):
+        parser.error(
+            "--checkpoint-path must be omitted or supplied exactly once per evaluated experiment"
+        )
     cfgs = [load_policy_cfg(args, experiment) for experiment in experiments]
     cfg = cfgs[0]
     device = torch.device("cpu" if args.device == "cpu" else "cuda")
@@ -174,16 +188,22 @@ def main():
     env_info = extract_env_info(probe_env, cfg)
     actor_critics = []
     model_paths = []
-    for experiment, member_cfg in zip(experiments, cfgs):
+    for member_index, (experiment, member_cfg) in enumerate(zip(experiments, cfgs)):
         actor_critic = create_actor_critic(
             member_cfg, probe_env.observation_space, probe_env.action_space
         )
         actor_critic.eval()
         actor_critic.model_to_device(device)
-        model_path = checkpoint_path(member_cfg, args.policy_index, args.checkpoint)
+        model_path = (
+            args.checkpoint_path[member_index]
+            if args.checkpoint_path
+            else checkpoint_path(member_cfg, args.policy_index, args.checkpoint)
+        )
+        if not model_path.is_file():
+            raise FileNotFoundError(f"Checkpoint does not exist: {model_path}")
         logger.info(
             "Loading %s policy %d for %s from %s",
-            args.checkpoint,
+            "explicit" if args.checkpoint_path else args.checkpoint,
             args.policy_index,
             experiment,
             model_path,
@@ -283,7 +303,7 @@ def main():
             "checkpoints": [str(path) for path in model_paths],
             "tie_break_index": args.ensemble_tie_break_index,
         } if len(experiments) > 1 else None,
-        "checkpoint_kind": args.checkpoint,
+        "checkpoint_kind": "explicit" if args.checkpoint_path else args.checkpoint,
         "policy_index": args.policy_index,
         "device": args.device,
         "episodes": args.episodes,

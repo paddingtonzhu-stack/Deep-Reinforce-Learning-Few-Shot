@@ -185,6 +185,31 @@ python run_sf_gru_explore_screen.py \
 The same four-part stage gate applies; do not tune the coefficient on this seed
 range if it fails.
 
+The stronger-exploration screen failed on seeds `140000--140099`. Candidates
+scored 10%, 22%, and 7% versus 35%, 6%, and 22% for their matched controls;
+upstream scored 89%. One paired win and a lower mean (13% versus 21%) reject
+the larger exploration coefficient.
+
+The next isolated hypothesis tests whether Sample Factory's reward-based
+checkpoint selection is misaligned with corridor completion. It does not
+retrain or modify any policy. For each preserved 10M GRU-64 training seed, it
+evaluates the reward-best checkpoint and two late snapshots on development
+seeds `150000--150099`, selecting by completion, then mean reward, then a fixed
+filename tie-break. It then compares those frozen selections with the original
+reward-best checkpoints on disjoint holdout seeds `160000--160099`:
+
+```bash
+python run_sf_gru_checkpoint_selection_screen.py \
+  --episodes=100 \
+  --selection-seed-start=150000 \
+  --holdout-seed-start=160000 \
+  --device=gpu
+```
+
+The selection manifest records exact checkpoint hashes and development
+results. Holdout outcomes never influence selection. The unchanged four-part
+gate is applied only to holdout results.
+
 List these definitions from the code:
 
 ```bash
