@@ -153,6 +153,10 @@ def main():
     # optimizer, rollout length, or environment.
     if selected_method and selected_method.name == "gru_lag1" and not has_option(argv, "max_policy_lag"):
         argv.append("--max_policy_lag=1")
+    # Test genuinely on-policy collection as a separate hypothesis from the
+    # rejected lag=1 experiment, which discarded stale asynchronous batches.
+    if selected_method and selected_method.name == "gru_sync" and not has_option(argv, "async_rl"):
+        argv.append("--async_rl=False")
     completion_bonus = known.completion_bonus
     if (
         selected_method
@@ -211,7 +215,8 @@ def main():
         f"Matched Sample Factory run: method={known.method or memory}, memory={cfg.memory}, "
         f"use_rnn={cfg.use_rnn}, "
         f"recurrence={cfg.recurrence}, workers={cfg.num_workers}, "
-        f"envs_per_worker={cfg.num_envs_per_worker}, max_policy_lag={cfg.max_policy_lag}, "
+        f"envs_per_worker={cfg.num_envs_per_worker}, async_rl={cfg.async_rl}, "
+        f"max_policy_lag={cfg.max_policy_lag}, "
         f"budget={cfg.train_for_env_steps}",
         flush=True,
     )

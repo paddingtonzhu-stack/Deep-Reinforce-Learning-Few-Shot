@@ -16,6 +16,7 @@ discussion therefore means “+ Sample Factory APPO” in the code.
 | `gru_skill_curriculum` | CNN + GRU-64 + APPO, pretraining at Doom skill 1 | Exploration-stability curriculum candidate | Next isolated hypothesis after low-LR continuation failed its multi-seed gate |
 | `gru_orthogonal` | CNN + orthogonally initialized GRU-64 + APPO | Rejected initialization control | Failed the 2M gate: 1/3 paired wins, mean 15% vs 22%, worst 0% vs 7% |
 | `gru_lag1` | CNN + GRU-64 + lag-controlled APPO | Stale-trajectory candidate | Caps asynchronous policy lag at one version while preserving the matched GRU-64 architecture and optimizer |
+| `gru_sync` | CNN + GRU-64 + synchronous PPO | On-policy collection candidate | Sets `async_rl=False` while preserving the matched GRU-64 architecture, optimizer, and recurrence |
 | GRU-64 late-checkpoint average | Parameter average of the two late snapshots from each GRU-64 run | Optimization-noise robustness candidate | Next isolated hypothesis after completion bonus reduced matched 2M mean completion from 22% to 13% |
 | GRU-64 ensemble | Per-action majority vote across three independently trained GRU-64 policies | Initialization-robust inference candidate | Motivated by low pairwise death-set overlap (Jaccard 0.35–0.36) after GRU-64 failed the upstream gate |
 | `gru_attention` | CNN + GRU + gated optional attention + APPO | Our experimental architecture | 88.4% enabled vs 88.0% disabled on 500 matched episodes; no demonstrated attention benefit |
@@ -134,6 +135,30 @@ python run_sf_gru_orthogonal_screen.py \
 The unchanged gate requires at least two paired wins, improved mean,
 non-degraded worst seed, and candidate mean within five completion points of
 upstream.
+
+The lag-one screen failed decisively on seeds 120000--120099: all three
+lag-controlled candidates scored 0% completion, versus 39%, 6%, and 18% for
+their budget-matched GRU-64 controls; upstream scored 85%. This rejects
+discarding asynchronous trajectories after one policy version.
+
+The next isolated hypothesis removes collection-time staleness without
+discarding rollouts by using Sample Factory's synchronous mode. Train with:
+
+```bash
+python run_sf_transformer_multiseed.py \
+  --memory=gru_sync --seeds=0,1,2 --gpus=0,1 \
+  --num-policies=1 --steps=2000000 --context=64 \
+  --train-dir=artifacts/sample_factory_gru_sync_2m
+```
+
+Evaluate on fresh seeds 130000--130099 with:
+
+```bash
+python run_sf_gru_sync_screen.py \
+  --episodes=100 --seed-start=130000 --device=gpu
+```
+
+The same four-part stage gate applies.
 
 List these definitions from the code:
 
