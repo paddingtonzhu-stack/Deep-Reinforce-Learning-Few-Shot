@@ -163,6 +163,12 @@ def main():
         # 8 workers * 4 envs * rollout 64 = 2048 samples. Two 1024-sample
         # batches consume each synchronous collection exactly once.
         argv.append("--num_batches_per_epoch=2")
+    # Test whether stronger action exploration prevents the observed early
+    # reward~4 collapse across training seeds, without changing architecture.
+    if selected_method and selected_method.name == "gru_explore" and not has_option(
+        argv, "exploration_loss_coeff"
+    ):
+        argv.append("--exploration_loss_coeff=0.003")
     completion_bonus = known.completion_bonus
     if (
         selected_method
@@ -222,7 +228,8 @@ def main():
         f"use_rnn={cfg.use_rnn}, "
         f"recurrence={cfg.recurrence}, workers={cfg.num_workers}, "
         f"envs_per_worker={cfg.num_envs_per_worker}, async_rl={cfg.async_rl}, "
-        f"batches_per_epoch={cfg.num_batches_per_epoch}, max_policy_lag={cfg.max_policy_lag}, "
+        f"batches_per_epoch={cfg.num_batches_per_epoch}, "
+        f"exploration_coeff={cfg.exploration_loss_coeff}, max_policy_lag={cfg.max_policy_lag}, "
         f"budget={cfg.train_for_env_steps}",
         flush=True,
     )

@@ -17,6 +17,7 @@ discussion therefore means “+ Sample Factory APPO” in the code.
 | `gru_orthogonal` | CNN + orthogonally initialized GRU-64 + APPO | Rejected initialization control | Failed the 2M gate: 1/3 paired wins, mean 15% vs 22%, worst 0% vs 7% |
 | `gru_lag1` | CNN + GRU-64 + lag-controlled APPO | Stale-trajectory candidate | Caps asynchronous policy lag at one version while preserving the matched GRU-64 architecture and optimizer |
 | `gru_sync` | CNN + GRU-64 + synchronous PPO | On-policy collection candidate | Sets `async_rl=False`; two 1024-sample batches consume each 2048-sample synchronous collection exactly once |
+| `gru_explore` | CNN + GRU-64 + stronger-exploration APPO | Exploration-stability candidate | Raises only `exploration_loss_coeff` from 0.001 to 0.003 to test early policy collapse |
 | GRU-64 late-checkpoint average | Parameter average of the two late snapshots from each GRU-64 run | Optimization-noise robustness candidate | Next isolated hypothesis after completion bonus reduced matched 2M mean completion from 22% to 13% |
 | GRU-64 ensemble | Per-action majority vote across three independently trained GRU-64 policies | Initialization-robust inference candidate | Motivated by low pairwise death-set overlap (Jaccard 0.35–0.36) after GRU-64 failed the upstream gate |
 | `gru_attention` | CNN + GRU + gated optional attention + APPO | Our experimental architecture | 88.4% enabled vs 88.0% disabled on 500 matched episodes; no demonstrated attention benefit |
@@ -162,6 +163,27 @@ python run_sf_gru_sync_screen.py \
 ```
 
 The same four-part stage gate applies.
+
+The synchronous screen failed on seeds 130000--130099. Candidates scored 0%,
+0%, and 35% versus 40%, 8%, and 25% for matched asynchronous controls; upstream
+scored 87%. One paired win, lower mean, and a zero worst seed reject synchronous
+collection as a reliability fix.
+
+The next isolated hypothesis targets the repeated early reward~4 collapse by
+increasing only the symmetric-KL exploration coefficient from 0.001 to 0.003:
+
+```bash
+python run_sf_transformer_multiseed.py \
+  --memory=gru_explore --seeds=0,1,2 --gpus=0,1 \
+  --num-policies=1 --steps=2000000 --context=64 \
+  --train-dir=artifacts/sample_factory_gru_explore_2m
+
+python run_sf_gru_explore_screen.py \
+  --episodes=100 --seed-start=140000 --device=gpu
+```
+
+The same four-part stage gate applies; do not tune the coefficient on this seed
+range if it fails.
 
 List these definitions from the code:
 

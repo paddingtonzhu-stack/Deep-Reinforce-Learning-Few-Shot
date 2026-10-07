@@ -61,6 +61,12 @@ def test_synchronous_method_preserves_standard_gru64_architecture():
     assert method.recurrence == 64
 
 
+def test_exploration_method_preserves_standard_gru64_architecture():
+    method = method_for_training("gru_explore")
+    assert method.memory == "gru"
+    assert method.recurrence == 64
+
+
 def test_custom_temporal_state_sizes_are_explicit():
     transformer = recurrent_options("transformer", 32, 256, 512, 128)
     attention = recurrent_options("gru_attention", 32, 256, 512, 128)

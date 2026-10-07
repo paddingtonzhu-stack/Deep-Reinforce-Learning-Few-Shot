@@ -90,6 +90,14 @@ METHODS = {
         "Standard GRU-64 with synchronous rollout collection and exact one-pass batch accounting.",
         64,
     ),
+    "gru_explore": Method(
+        "gru_explore",
+        "CNN + GRU-64 + stronger exploration APPO",
+        "gru",
+        True,
+        "Standard asynchronous GRU-64 with exploration-loss coefficient increased from 0.001 to 0.003.",
+        64,
+    ),
     "gru_attention": Method(
         "gru_attention",
         "CNN + GRU + optional attention + APPO",
