@@ -237,7 +237,7 @@ def main():
     if len(inspect.signature(register_components).parameters) == 0:
         register_components()
     else:
-        register_components(False)
+        register_components({"brightness": 1.0, "contrast": 1.0, "blue_tint": 0.0})
     cfg = load_source(args)
     device = torch.device("cuda" if args.device == "gpu" else "cpu")
     probe, _ = build_env(cfg, 0)
