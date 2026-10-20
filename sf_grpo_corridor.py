@@ -8,7 +8,6 @@ objective is optimized without a learned value advantage.
 from __future__ import annotations
 
 import argparse
-import copy
 import hashlib
 import inspect
 import json
@@ -246,7 +245,10 @@ def main():
     source = torch.load(source_path, map_location=device, weights_only=False)
     actor.load_state_dict(source["model"])
     actor.model_to_device(device)
-    reference = copy.deepcopy(actor).eval()
+    reference = create_actor_critic(cfg, probe.observation_space, probe.action_space)
+    reference.load_state_dict(source["model"])
+    reference.model_to_device(device)
+    reference.eval()
     for parameter in reference.parameters():
         parameter.requires_grad_(False)
     # GRPO does not train the value head; the shared visual/recurrent policy remains trainable.
