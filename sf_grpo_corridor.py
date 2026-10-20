@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
+import inspect
 import json
 import math
 from dataclasses import dataclass
@@ -231,7 +232,12 @@ def main():
         parser.error("--group-size must be at least 2")
 
     torch.manual_seed(args.seed)
-    register_components()
+    # Newer experiment branches parameterize evaluator registration by visual
+    # shift, while older branches expose a zero-argument helper.
+    if len(inspect.signature(register_components).parameters) == 0:
+        register_components()
+    else:
+        register_components(False)
     cfg = load_source(args)
     device = torch.device("cuda" if args.device == "gpu" else "cpu")
     probe, _ = build_env(cfg, 0)
