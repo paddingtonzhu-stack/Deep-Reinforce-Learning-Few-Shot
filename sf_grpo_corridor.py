@@ -19,7 +19,6 @@ import torch
 
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
-from sample_factory.algo.utils.action_distributions import sample_actions_log_probs
 from sample_factory.algo.utils.env_info import extract_env_info
 from sample_factory.algo.utils.rl_utils import make_dones, prepare_and_normalize_obs
 from sample_factory.algo.utils.tensor_utils import unsqueeze_tensor
@@ -85,8 +84,8 @@ def collect_trajectory(actor, reference, cfg, env_seed: int, device: torch.devic
         while True:
             normalized = prepare_and_normalize_obs(actor, obs)
             out = actor(normalized, rnn)
-            distribution = actor.action_distribution()
-            action, old_log_prob = sample_actions_log_probs(distribution)
+            action = out["actions"]
+            old_log_prob = out["log_prob_actions"]
 
             ref_out = reference(normalized, ref_rnn)
             ref_log_prob = reference.action_distribution().log_prob(action)
@@ -255,6 +254,11 @@ def main():
     for parameter in actor.critic_linear.parameters():
         parameter.requires_grad_(False)
     actor.train()
+    # A single trajectory step is not a valid batch for updating RunningMeanStd
+    # (variance is undefined); retain the audited source normalization state.
+    actor.obs_normalizer.eval()
+    if actor.returns_normalizer is not None:
+        actor.returns_normalizer.eval()
     probe.close()
 
     optimizer = torch.optim.Adam(
