@@ -17,10 +17,36 @@ function Find-Python {
             } catch {}
         }
     }
-    throw "Python 3 was not found. Install Python from python.org, enable 'Add Python to PATH', then rerun this script."
+    return $null
 }
 
 $BootstrapPython = Find-Python
+if (-not $BootstrapPython) {
+    $Winget = Get-Command "winget" -ErrorAction SilentlyContinue
+    if (-not $Winget) {
+        throw "Python 3 and winget were not found. Install Python 3.12 from python.org, then rerun this script."
+    }
+    Write-Host "Python 3 was not found. Installing Python 3.12 for the current Windows user..."
+    & $Winget.Source install --id Python.Python.3.12 --exact --scope user --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) { throw "Python installation through winget failed." }
+
+    $InstalledCandidates = @(
+        (Join-Path $env:LocalAppData "Programs\Python\Python312\python.exe"),
+        (Join-Path $env:LocalAppData "Programs\Python\Python313\python.exe")
+    )
+    foreach ($Candidate in $InstalledCandidates) {
+        if (Test-Path -LiteralPath $Candidate) {
+            $BootstrapPython = $Candidate
+            break
+        }
+    }
+    if (-not $BootstrapPython) {
+        $BootstrapPython = Find-Python
+    }
+    if (-not $BootstrapPython) {
+        throw "Python was installed but could not be located. Open a new PowerShell window and rerun this script."
+    }
+}
 if (-not (Test-Path -LiteralPath (Join-Path $VenvDir "Scripts\python.exe"))) {
     Write-Host "Creating the Windows player environment..."
     & $BootstrapPython -m venv $VenvDir

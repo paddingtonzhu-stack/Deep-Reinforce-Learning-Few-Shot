@@ -11,7 +11,6 @@ $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Viewer = Join-Path $ProjectDir "inspect_vizdoom_level.ps1"
 $Level = "battle$Map"
 
-$Arguments = @("-Level", $Level, "-Mode", "spectator", "-Episodes", $Episodes, "-Seed", $Seed)
 if ($Mute) {
     # The generic launcher currently has no switch forwarding, so invoke its
     # selected player directly for muted sessions.
@@ -21,5 +20,5 @@ if ($Mute) {
     }
     & $Python (Join-Path $ProjectDir "inspect_vizdoom_level.py") --level $Level --mode spectator --episodes $Episodes --seed $Seed --mute
 } else {
-    & $Viewer @Arguments
+    & $Viewer -Level $Level -Mode spectator -Episodes $Episodes -Seed $Seed
 }
