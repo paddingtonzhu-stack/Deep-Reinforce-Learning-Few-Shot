@@ -2,7 +2,14 @@ param()
 
 $ErrorActionPreference = "Stop"
 $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$VenvDir = Join-Path $ProjectDir ".vizdoom-play"
+$ExistingVenv = Join-Path $ProjectDir ".venv"
+$PlayerVenv = Join-Path $ProjectDir ".vizdoom-play"
+if (Test-Path -LiteralPath (Join-Path $ExistingVenv "Scripts\python.exe")) {
+    $VenvDir = $ExistingVenv
+    Write-Host "Using existing project environment: $VenvDir"
+} else {
+    $VenvDir = $PlayerVenv
+}
 
 function Find-Python {
     $commands = @("py", "python")
@@ -20,8 +27,12 @@ function Find-Python {
     return $null
 }
 
-$BootstrapPython = Find-Python
-if (-not $BootstrapPython) {
+$VenvPython = Join-Path $VenvDir "Scripts\python.exe"
+$BootstrapPython = $null
+if (-not (Test-Path -LiteralPath $VenvPython)) {
+    $BootstrapPython = Find-Python
+}
+if ((-not (Test-Path -LiteralPath $VenvPython)) -and (-not $BootstrapPython)) {
     $Winget = Get-Command "winget" -ErrorAction SilentlyContinue
     if (-not $Winget) {
         throw "Python 3 and winget were not found. Install Python 3.12 from python.org, then rerun this script."
@@ -47,13 +58,13 @@ if (-not $BootstrapPython) {
         throw "Python was installed but could not be located. Open a new PowerShell window and rerun this script."
     }
 }
-if (-not (Test-Path -LiteralPath (Join-Path $VenvDir "Scripts\python.exe"))) {
+if (-not (Test-Path -LiteralPath $VenvPython)) {
     Write-Host "Creating the Windows player environment..."
     & $BootstrapPython -m venv $VenvDir
     if ($LASTEXITCODE -ne 0) { throw "Failed to create $VenvDir" }
 }
 
-$Python = Join-Path $VenvDir "Scripts\python.exe"
+$Python = $VenvPython
 Write-Host "Installing/updating ViZDoom..."
 & $Python -m pip install --upgrade pip vizdoom
 if ($LASTEXITCODE -ne 0) { throw "ViZDoom installation failed." }

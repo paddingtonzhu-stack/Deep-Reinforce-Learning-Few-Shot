@@ -12,6 +12,7 @@ $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ProjectDir
 
 $PythonCandidates = @(
+    (Join-Path $ProjectDir ".venv\Scripts\python.exe"),
     (Join-Path $ProjectDir ".vizdoom-play\Scripts\python.exe"),
     (Join-Path $ProjectDir ".python-corridor\python.exe"),
     (Join-Path $ProjectDir ".python\python.exe"),
