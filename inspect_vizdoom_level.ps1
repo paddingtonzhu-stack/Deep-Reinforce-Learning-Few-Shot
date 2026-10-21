@@ -13,7 +13,6 @@ Set-Location $ProjectDir
 
 $PythonCandidates = @(
     (Join-Path $ProjectDir ".venv\Scripts\python.exe"),
-    (Join-Path $ProjectDir ".vizdoom-play\Scripts\python.exe"),
     (Join-Path $ProjectDir ".python-corridor\python.exe"),
     (Join-Path $ProjectDir ".python\python.exe"),
     (Join-Path $ProjectDir ".sf\Scripts\python.exe"),
@@ -33,7 +32,7 @@ foreach ($Candidate in $PythonCandidates) {
     }
 }
 if (-not $Python) {
-    throw "No working Windows ViZDoom environment found. Run .\setup_vizdoom_player.ps1 once, then retry."
+    throw "No working .venv with ViZDoom found. Run .\setup_vizdoom_player.ps1 once, then retry."
 }
 
 & $Python inspect_vizdoom_level.py --level $Level --mode $Mode --episodes $Episodes --seed $Seed

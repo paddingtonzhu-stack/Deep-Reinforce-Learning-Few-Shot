@@ -16,9 +16,6 @@ if ($Mute) {
     # selected player directly for muted sessions.
     $Python = Join-Path $ProjectDir ".venv\Scripts\python.exe"
     if (-not (Test-Path -LiteralPath $Python)) {
-        $Python = Join-Path $ProjectDir ".vizdoom-play\Scripts\python.exe"
-    }
-    if (-not (Test-Path -LiteralPath $Python)) {
         throw "Run .\setup_vizdoom_player.ps1 first."
     }
     & $Python (Join-Path $ProjectDir "inspect_vizdoom_level.py") --level $Level --mode spectator --episodes $Episodes --seed $Seed --mute
